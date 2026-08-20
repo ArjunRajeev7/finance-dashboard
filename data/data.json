@@ -1,0 +1,19 @@
+{
+  "_readme": "This file is the single source of truth for Finance Tracker. Edit it by hand (careful with commas/quotes) or use the site's forms and click 'Save to file' to download an updated copy of this exact file, then replace this file in your repo and commit. Opening the site anywhere reads whatever is committed here. Dates are 'YYYY-MM-DD'. Money fields for IN_STOCK/IN_MF are in INR, US_STOCK txns are in USD (converted using live/manual FX on the dashboard).",
+  "version": 1,
+  "holdings": {
+    "IN_STOCK": [],
+    "IN_MF": [],
+    "US_STOCK": [],
+    "FD": [],
+    "EPF": []
+  },
+  "settings": {
+    "baseCurrency": "INR",
+    "apiKeys": { "alphaVantage": "" },
+    "fxOverride": null,
+    "corsProxy": "https://corsproxy.io/?url=",
+    "priceCache": {},
+    "lastUpdated": {}
+  }
+}

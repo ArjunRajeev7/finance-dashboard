@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Finance Tracker — Fixed Deposits</title>
+<meta name="theme-color" content="#0B0E14" />
+<meta name="robots" content="noindex, nofollow" />
+<script>
+  (function() {
+    var saved = localStorage.getItem('ft_theme');
+    var theme = saved || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    document.documentElement.setAttribute('data-theme', theme);
+  })();
+</script>
+<link rel="manifest" href="manifest.json" />
+<link rel="icon" href="icons/icon-192.png" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/theme.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside id="sidebar" class="sidebar"></aside>
+    <div id="sidebarScrim" class="sidebar-scrim"></div>
+    <div class="main-col">
+      <div id="pageHeader" class="header"></div>
+      <div class="container">
+
+        <div class="card-grid" id="summaryCards"></div>
+
+        <div class="card" id="addFrame">
+          <div class="card-head"><span class="eyebrow">Add fixed deposit</span></div>
+          <div class="card-body">
+            <div class="form-grid">
+              <div class="form-field"><label>Bank / issuer</label><input id="fdBank" placeholder="e.g. HDFC Bank" /></div>
+              <div class="form-field"><label>Principal (₹)</label><input id="fdPrincipal" type="number" step="any" /></div>
+              <div class="form-field"><label>Rate % p.a.</label><input id="fdRate" type="number" step="any" /></div>
+              <div class="form-field"><label>Start date</label><input id="fdStart" type="date" /></div>
+              <div class="form-field"><label>Tenure (months)</label><input id="fdTenure" type="number" step="1" /></div>
+              <div class="form-field"><label>Compounding</label>
+                <select id="fdComp">
+                  <option value="quarterly">Quarterly</option>
+                  <option value="monthly">Monthly</option>
+                  <option value="yearly">Yearly</option>
+                </select>
+              </div>
+              <div class="form-field"><button id="addFdBtn" class="primary">+ Add</button></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" id="tableFrame"></div>
+
+        <div class="card">
+          <div class="card-head"><span class="eyebrow">Maturity timeline</span></div>
+          <div class="card-body" id="timelineHolder"></div>
+        </div>
+
+        <div class="footer-note">Finance Tracker · data source: data/data.json · not investment advice</div>
+      </div>
+    </div>
+  </div>
+  <nav id="bottomNav" class="bottom-nav"></nav>
+
+  <script src="js/icons.js"></script>
+  <script src="js/theme.js"></script>
+  <script src="js/store.js"></script>
+  <script src="js/finance.js"></script>
+  <script src="js/market.js"></script>
+  <script src="js/valuation.js"></script>
+  <script src="js/charts.js"></script>
+  <script src="js/app.js"></script>
+  <script src="js/fixeddeposits.js"></script>
+</body>
+</html>
