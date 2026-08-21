@@ -118,7 +118,7 @@ Market.fetchUsQuote = async function (symbol) {
 Market.fetchUsdInr = async function () {
   const cacheKey = 'fx_usdinr';
   const cached = Store.getPriceCache(cacheKey, CACHE_TTL_MS);
-  if (cached) return cached.price;
+  if (cached != null) return cached;
 
   const settings = Store.getSettings();
   if (settings.fxOverride) return settings.fxOverride;
@@ -128,7 +128,7 @@ Market.fetchUsdInr = async function () {
     const data = await r.json();
     const rate = data.rates && data.rates.INR;
     if (rate) {
-      Store.setPriceCache(cacheKey, { price: rate });
+      Store.setPriceCache(cacheKey, rate);
       return rate;
     }
   } catch (e) { /* try fallback below */ }
@@ -138,7 +138,7 @@ Market.fetchUsdInr = async function () {
     const data2 = await r2.json();
     const rate2 = data2.rates && data2.rates.INR;
     if (rate2) {
-      Store.setPriceCache(cacheKey, { price: rate2 });
+      Store.setPriceCache(cacheKey, rate2);
       return rate2;
     }
   } catch (e) { /* give up */ }
