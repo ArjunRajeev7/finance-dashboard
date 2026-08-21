@@ -38,9 +38,6 @@ async function fetchTextWithFallback(directUrl) {
 }
 
 // ---------------- NSE Stocks ----------------
-// Unofficial endpoint; requires an initial cookie-setting request in real
-// browsers sometimes. We attempt direct, then proxy. If both fail, caller
-// should fall back to the holding's manual price.
 Market.fetchNseQuote = async function (symbol) {
   const cacheKey = 'nse_' + symbol;
   const cached = Store.getPriceCache(cacheKey, CACHE_TTL_MS);
@@ -147,7 +144,6 @@ Market.fetchUsdInr = async function () {
 };
 
 // ---------------- Bulk refresh ----------------
-// Refreshes all holdings' prices, returns { updated:[], failed:[{holding, error}] }
 Market.refreshAll = async function (onProgress) {
   const d = Store.load();
   const updated = [];
