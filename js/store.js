@@ -21,9 +21,9 @@ const DATA_FILE_PATH = 'data/data.json';
 const ASSET_TYPES = ['IN_STOCK', 'IN_MF', 'US_STOCK', 'FD', 'EPF'];
 
 const ASSET_LABELS = {
-  IN_STOCK: 'Stocks [IND]',
+  IN_STOCK: 'Indian Stocks',
   IN_MF: 'Mutual Funds',
-  US_STOCK: 'Stocks [US]',
+  US_STOCK: 'US Stocks',
   FD: 'Fixed Deposits',
   EPF: 'EPF'
 };
@@ -115,6 +115,7 @@ const Store = {
     const d = this.load();
     holding.id = holding.id || this.uid();
     if (['IN_STOCK', 'IN_MF', 'US_STOCK'].includes(assetType) && !holding.txns) holding.txns = [];
+    if (assetType === 'IN_STOCK' && !holding.tags) holding.tags = [];
     if (assetType === 'EPF') {
       if (!holding.txns) holding.txns = [];
       if (!holding.interestRates) holding.interestRates = [];
@@ -172,6 +173,22 @@ const Store = {
 
   addEpfContribution(holdingId, contrib) {
     return this.addTxn('EPF', holdingId, Object.assign({ type: 'contribution' }, contrib));
+  },
+
+  // ---------- Tags (Indian Stocks: IPO, broker account, etc.) ----------
+  addTag(assetType, holdingId, tag) {
+    const h = this.getHolding(assetType, holdingId);
+    if (!h) return;
+    if (!h.tags) h.tags = [];
+    tag = (tag || '').trim();
+    if (tag && !h.tags.includes(tag)) h.tags.push(tag);
+    this.save();
+  },
+  removeTag(assetType, holdingId, tag) {
+    const h = this.getHolding(assetType, holdingId);
+    if (!h) return;
+    h.tags = (h.tags || []).filter(t => t !== tag);
+    this.save();
   },
 
   // ---------- Settings ----------

@@ -25,7 +25,7 @@ function renderFdPage() {
     <div class="table-scroll">
       <table>
         <thead><tr>
-          <th>Bank</th><th>Principal</th><th>Rate</th><th>Start</th><th>Maturity Date</th>
+          <th>Bank</th><th>Principal</th><th>Rate</th><th>Tenure</th><th>Start</th><th>Maturity Date</th>
           <th>Current Value</th><th>Interest Accrued</th><th>At Maturity</th><th>Status</th><th></th>
         </tr></thead>
         <tbody>
@@ -33,11 +33,14 @@ function renderFdPage() {
             const maturity = Finance.fdMaturityValue(h);
             const accrued = val.currentValueINR - h.principal;
             const daysLeft = Math.max(0, Math.ceil(Finance.daysBetween(Finance.todayStr(), val.maturityDate)));
+            const tenureInfo = Finance.fdTenureInfo(h);
+            const tenureLabel = tenureInfo.unit === 'days' ? `${tenureInfo.value} days` : `${tenureInfo.value} mo`;
             return `
             <tr>
               <td>${h.bank}</td>
               <td class="num">${Fmt.money(h.principal)}</td>
               <td class="num">${h.rate}% ${h.compounding[0].toUpperCase()}</td>
+              <td class="num">${tenureLabel}</td>
               <td class="num">${Fmt.date(h.startDate)}</td>
               <td class="num">${Fmt.date(val.maturityDate)}</td>
               <td class="num">${Fmt.money(val.currentValueINR)}</td>
@@ -46,7 +49,7 @@ function renderFdPage() {
               <td>${val.isMatured ? '<span class="badge">Matured</span>' : `<span class="badge">${daysLeft}d left</span>`}</td>
               <td><div class="row-actions"><button data-id="${h.id}" class="danger">Del</button></div></td>
             </tr>`;
-          }).join('') : `<tr><td colspan="10" class="empty-state">No FDs yet — add one above</td></tr>`}
+          }).join('') : `<tr><td colspan="11" class="empty-state">No FDs yet — add one above</td></tr>`}
         </tbody>
       </table>
     </div>
@@ -95,10 +98,11 @@ function renderFdPage() {
     const principal = parseFloat(addFrame.querySelector('#fdPrincipal').value);
     const rate = parseFloat(addFrame.querySelector('#fdRate').value);
     const startDate = addFrame.querySelector('#fdStart').value;
-    const tenureMonths = parseInt(addFrame.querySelector('#fdTenure').value, 10);
+    const tenureValue = parseInt(addFrame.querySelector('#fdTenureValue').value, 10);
+    const tenureUnit = addFrame.querySelector('#fdTenureUnit').value;
     const compounding = addFrame.querySelector('#fdComp').value;
-    if (!bank || !principal || !rate || !startDate || !tenureMonths) return toast('Fill all fields', 'err');
-    Store.addHolding('FD', { bank, principal, rate, startDate, tenureMonths, compounding });
+    if (!bank || !principal || !rate || !startDate || !tenureValue) return toast('Fill all fields', 'err');
+    Store.addHolding('FD', { bank, principal, rate, startDate, tenureUnit, tenureValue, compounding });
     toast('FD added', 'ok');
     renderFdPage();
   };

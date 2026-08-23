@@ -59,8 +59,8 @@ window.Fmt = Fmt;
 
 const NAV_ITEMS = [
   { href: 'index.html', label: 'Dashboard', icon: 'dashboard' },
-  { href: 'stocks-ind.html', label: 'Stocks [IND]', icon: 'stocksIn' },
-  { href: 'stocks-us.html', label: 'Stocks [US]', icon: 'stocksUs' },
+  { href: 'stocks-ind.html', label: 'Indian Stocks', icon: 'stocksIn' },
+  { href: 'stocks-us.html', label: 'US Stocks', icon: 'stocksUs' },
   { href: 'mutual-funds.html', label: 'Mutual Funds', icon: 'mutualFunds' },
   { href: 'fixed-deposits.html', label: 'Fixed Deposits', icon: 'fd' },
   { href: 'epf.html', label: 'EPF', icon: 'epf' }
@@ -71,15 +71,20 @@ function renderShell(activeHref, pageTitle) {
   const header = document.getElementById('pageHeader');
   const bottomNav = document.getElementById('bottomNav');
   const scrim = document.getElementById('sidebarScrim');
+  const appShell = document.querySelector('.app-shell');
+
+  if (appShell && localStorage.getItem('ft_sidebar_collapsed') === 'true' && window.innerWidth > 860) {
+    appShell.classList.add('collapsed');
+  }
 
   if (sidebar) {
     sidebar.innerHTML = `
       <div class="sidebar-brand">${Icons.brand}<span>Finance Tracker</span></div>
       <nav class="sidebar-nav">
-        ${NAV_ITEMS.map(t => `<a href="${t.href}" class="${t.href === activeHref ? 'active' : ''}">${Icons[t.icon]}<span>${t.label}</span></a>`).join('')}
+        ${NAV_ITEMS.map(t => `<a href="${t.href}" class="${t.href === activeHref ? 'active' : ''}" title="${t.label}">${Icons[t.icon]}<span>${t.label}</span></a>`).join('')}
       </nav>
       <div class="sidebar-foot">
-        <a href="#" id="settingsLink" style="display:flex;align-items:center;gap:11px;padding:9px 12px;border-radius:var(--radius-sm);color:var(--text-muted);font-size:13px;font-weight:500;">${Icons.settings}<span>Settings</span></a>
+        <a href="#" id="settingsLink" title="Settings">${Icons.settings}<span>Settings</span></a>
       </div>
     `;
     sidebar.querySelector('#settingsLink').onclick = (e) => { e.preventDefault(); openSettingsModal(); closeSidebarMobile(); };
@@ -88,14 +93,14 @@ function renderShell(activeHref, pageTitle) {
   if (bottomNav) {
     const mobileItems = NAV_ITEMS.slice(0, 5);
     bottomNav.innerHTML = mobileItems.map(t =>
-      `<a href="${t.href}" class="${t.href === activeHref ? 'active' : ''}">${Icons[t.icon]}<span>${t.label.replace(' [IND]', '').replace(' [US]', ' US')}</span></a>`
+      `<a href="${t.href}" class="${t.href === activeHref ? 'active' : ''}">${Icons[t.icon]}<span>${t.label.replace('Indian ', '').replace('US ', 'US ')}</span></a>`
     ).join('');
   }
 
   if (header) {
     header.innerHTML = `
       <div style="display:flex; align-items:center; gap:12px; min-width:0;">
-        <button class="icon-btn ghost hamburger-btn" id="hamburgerBtn" aria-label="Menu">${Icons.menu}</button>
+        <button class="icon-btn ghost hamburger-btn" id="hamburgerBtn" aria-label="Toggle menu">${Icons.menu}</button>
         <div class="header-title">${pageTitle}</div>
       </div>
       <div class="header-actions">
@@ -114,7 +119,15 @@ function renderShell(activeHref, pageTitle) {
       updateSourceChip();
     };
     const hb = document.getElementById('hamburgerBtn');
-    if (hb) hb.onclick = () => { sidebar.classList.add('open'); scrim.classList.add('open'); };
+    if (hb) hb.onclick = () => {
+      if (window.innerWidth > 860) {
+        appShell.classList.toggle('collapsed');
+        localStorage.setItem('ft_sidebar_collapsed', appShell.classList.contains('collapsed') ? 'true' : 'false');
+      } else {
+        sidebar.classList.toggle('open');
+        scrim.classList.toggle('open');
+      }
+    };
   }
 
   if (scrim) scrim.onclick = closeSidebarMobile;
@@ -159,7 +172,10 @@ async function refreshPrices() {
   try {
     const { updated, failed } = await Market.refreshAll();
     if (updated.length) toast(`Updated ${updated.length} price(s)`, 'ok');
-    if (failed.length) toast(`${failed.length} failed: ${failed.map(f => f.holding).join(', ')} — check symbol or set manually`, 'err');
+    if (failed.length) {
+      const first = failed[0];
+      toast(`${failed.length} failed. ${first.holding}: ${first.error}`, 'err');
+    }
     updateFxChip();
     updateSourceChip();
     window.dispatchEvent(new CustomEvent('ft-prices-updated'));
@@ -291,6 +307,86 @@ function openSettingsModal() {
   });
 }
 window.openSettingsModal = openSettingsModal;
+
+// ---------------- Sortable table helper ----------------
+// state: {col: string|null, dir: 'asc'|'desc'}. accessor(row, key) returns the raw comparable value.
+function attachSortHandlers(theadEl, state, onChange) {
+  theadEl.querySelectorAll('th[data-sort]').forEach(th => {
+    th.classList.add('sortable');
+    const key = th.dataset.sort;
+    th.classList.toggle('active', state.col === key);
+    let arrow = th.querySelector('.sort-arrow');
+    if (!arrow) {
+      arrow = document.createElement('span');
+      arrow.className = 'sort-arrow';
+      th.appendChild(arrow);
+    }
+    arrow.textContent = state.col === key ? (state.dir === 'asc' ? '▲' : '▼') : '↕';
+    th.onclick = () => {
+      if (state.col === key) state.dir = state.dir === 'asc' ? 'desc' : 'asc';
+      else { state.col = key; state.dir = 'desc'; }
+      onChange();
+    };
+  });
+}
+window.attachSortHandlers = attachSortHandlers;
+
+function sortRows(rows, state, accessor) {
+  if (!state.col) return rows;
+  return [...rows].sort((a, b) => {
+    const va = accessor(a, state.col), vb = accessor(b, state.col);
+    if (va == null && vb == null) return 0;
+    if (va == null) return 1;
+    if (vb == null) return -1;
+    const cmp = typeof va === 'string' ? va.localeCompare(vb) : va - vb;
+    return state.dir === 'asc' ? cmp : -cmp;
+  });
+}
+window.sortRows = sortRows;
+
+// ---------------- Info popover helper (purchase-lot tooltips etc) ----------------
+let _infoContentMap = {};
+function registerInfoContent(id, html) { _infoContentMap[id] = html; }
+window.registerInfoContent = registerInfoContent;
+
+function closeInfoPopovers() {
+  document.querySelectorAll('.info-popover').forEach(p => p.remove());
+}
+window.closeInfoPopovers = closeInfoPopovers;
+
+function wireInfoTriggers(container) {
+  container.querySelectorAll('.info-trigger[data-info-key]').forEach(btn => {
+    btn.onclick = (e) => {
+      e.stopPropagation();
+      const wasOpenForThis = btn._popoverOpen;
+      closeInfoPopovers();
+      if (wasOpenForThis) { btn._popoverOpen = false; return; }
+      const html = _infoContentMap[btn.dataset.infoKey];
+      if (!html) return;
+      const popover = document.createElement('div');
+      popover.className = 'info-popover';
+      popover.innerHTML = html;
+      document.body.appendChild(popover);
+      const rect = btn.getBoundingClientRect();
+      let left = window.scrollX + rect.left;
+      const maxLeft = window.scrollX + window.innerWidth - popover.offsetWidth - 12;
+      if (left > maxLeft) left = Math.max(8, maxLeft);
+      popover.style.position = 'absolute';
+      popover.style.top = (window.scrollY + rect.bottom + 6) + 'px';
+      popover.style.left = left + 'px';
+      btn._popoverOpen = true;
+      setTimeout(() => document.addEventListener('click', () => { closeInfoPopovers(); btn._popoverOpen = false; }, { once: true }), 0);
+    };
+  });
+}
+window.wireInfoTriggers = wireInfoTriggers;
+
+// ---------------- Tag badges (used on Indian Stocks) ----------------
+function renderTagBadges(tags) {
+  if (!tags || !tags.length) return '';
+  return tags.map(t => `<span class="badge tag">${t}</span>`).join(' ');
+}
+window.renderTagBadges = renderTagBadges;
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {

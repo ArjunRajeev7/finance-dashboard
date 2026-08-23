@@ -32,6 +32,8 @@ Valuation.evalStockLike = function (assetType, holding, usdInr) {
     id: holding.id, assetType, name: holding.name || holding.symbol,
     symbol: holding.symbol, qty, avgCost: Finance.avgCost(holding),
     investedINR, currentValueINR, gainINR, gainPct,
+    investedNative: invested, currentValueNative, gainNative: currentValueNative != null ? currentValueNative - invested : null,
+    fxRate: fxMult,
     xirr, priceInfo, hasPrice: !!priceInfo
   };
 };

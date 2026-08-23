@@ -156,8 +156,18 @@ button.icon-btn svg { width: 18px; height: 18px; }
 .sidebar-nav a:hover { background: var(--surface-sunken); color: var(--text); }
 .sidebar-nav a.active { background: var(--accent-tint); color: var(--accent); font-weight: 600; }
 .sidebar-foot { padding: 12px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 6px; }
+.sidebar-foot a {
+  display: flex; align-items: center; gap: 11px;
+  padding: 9px 12px;
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  font-size: 13px; font-weight: 500;
+  text-decoration: none;
+}
+.sidebar-foot a svg { width: 17px; height: 17px; flex-shrink: 0; }
+.sidebar-foot a:hover { background: var(--surface-sunken); color: var(--text); }
 
-.main-col { flex: 1; margin-left: var(--sidebar-w); min-width: 0; }
+.main-col { flex: 1; margin-left: var(--sidebar-w); min-width: 0; transition: margin-left .15s ease; }
 
 .header {
   height: var(--header-h);
@@ -171,7 +181,19 @@ button.icon-btn svg { width: 18px; height: 18px; }
 .header-title { font-size: 16px; font-weight: 700; }
 .header-actions { display: flex; align-items: center; gap: 8px; }
 
-.hamburger-btn { display: none; }
+.hamburger-btn { display: inline-flex; }
+
+/* ---------------- desktop sidebar collapse ---------------- */
+@media (min-width: 861px) {
+  .app-shell.collapsed .sidebar { width: 64px; }
+  .app-shell.collapsed .main-col { margin-left: 64px; }
+  .app-shell.collapsed .sidebar-brand span,
+  .app-shell.collapsed .sidebar-nav a span,
+  .app-shell.collapsed .sidebar-foot a span { display: none; }
+  .app-shell.collapsed .sidebar-brand { justify-content: center; padding-left: 0; padding-right: 0; }
+  .app-shell.collapsed .sidebar-nav a { justify-content: center; }
+  .app-shell.collapsed .sidebar-foot a { justify-content: center; }
+}
 
 .container { max-width: 1320px; margin: 0 auto; padding: 24px; }
 
@@ -265,12 +287,48 @@ td.num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
 .empty-state { padding: 36px 20px; text-align: center; color: var(--text-faint); font-size: 13px; }
 .empty-state .arrow { color: var(--accent); }
 
-.badge {
-  display: inline-flex; align-items: center; gap: 5px;
-  font-size: 10.5px; padding: 3px 8px; border: 1px solid var(--border);
-  border-radius: 100px; color: var(--text-muted); background: var(--surface-sunken);
-}
+.badge { display: inline-flex; align-items: center; gap: 5px; font-size: 10.5px; padding: 3px 8px; border: 1px solid var(--border); border-radius: 100px; color: var(--text-muted); background: var(--surface-sunken); }
 .badge.warn { color: var(--warn); border-color: var(--warn); background: var(--warn-tint); }
+.badge.tag { cursor: default; }
+.badge.tag .tag-x { cursor: pointer; margin-left: 2px; color: var(--text-faint); font-weight: 700; }
+.badge.tag .tag-x:hover { color: var(--loss); }
+
+/* sortable table headers */
+th.sortable { cursor: pointer; user-select: none; }
+th.sortable:hover { color: var(--text); }
+th.sortable .sort-arrow { display: inline-block; margin-left: 4px; opacity: .5; font-size: 9px; }
+th.sortable.active .sort-arrow { opacity: 1; color: var(--accent); }
+
+/* dual currency (main value + smaller secondary-currency line) */
+.dual-value .secondary { display: block; font-size: 11px; color: var(--text-faint); font-family: var(--font-mono); margin-top: 1px; }
+
+/* info tooltip ("i" icon + popover) */
+.info-trigger {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 16px; height: 16px; border-radius: 50%;
+  border: 1px solid var(--border-strong); color: var(--text-faint);
+  font-size: 10px; font-weight: 700; cursor: pointer; background: var(--surface);
+  vertical-align: middle; margin-left: 5px; flex-shrink: 0;
+}
+.info-trigger:hover { color: var(--accent); border-color: var(--accent); }
+.info-popover {
+  position: absolute; z-index: 40; background: var(--surface-raised);
+  border: 1px solid var(--border-strong); border-radius: var(--radius);
+  box-shadow: var(--shadow-modal); padding: 10px; min-width: 260px; max-width: 340px;
+  font-size: 12px;
+}
+.info-popover table { font-size: 11.5px; }
+.info-popover th, .info-popover td { padding: 5px 8px; }
+
+/* tag input row */
+.tag-input-row { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; align-items: center; }
+.tag-input-row input { width: auto; flex: 1; min-width: 120px; }
+.tag-input-row select { width: auto; min-width: 140px; }
+
+/* unit-suffixed number input group (FD tenure) */
+.input-group { display: flex; }
+.input-group input { border-top-right-radius: 0; border-bottom-right-radius: 0; border-right: none; }
+.input-group select { width: auto; border-top-left-radius: 0; border-bottom-left-radius: 0; }
 
 /* toasts */
 .toast-region { position: fixed; bottom: 18px; right: 18px; z-index: 60; display: flex; flex-direction: column; gap: 8px; }

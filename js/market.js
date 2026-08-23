@@ -1,54 +1,102 @@
 /* ============================================================
    market.js — live price fetching with caching + manual fallback
    ============================================================
-   NSE has no public CORS-enabled API, so NSE + AMFI requests are
-   routed through a configurable CORS proxy. Default proxy can be
-   changed in Settings if it's rate-limited or down.
+   Neither NSE nor a same-origin AMFI request work with a plain
+   client-side fetch (no CORS headers), so both go through a
+   chain of public CORS proxies — tried in order, first success
+   wins. Public proxies are individually flaky (rate limits,
+   downtime), so trying several meaningfully improves reliability
+   over relying on just one. You can still override/add your own
+   in Settings; it's tried first, ahead of the built-in chain.
    ============================================================ */
 
 const Market = {};
 
-const DEFAULT_CORS_PROXY = 'https://corsproxy.io/?url=';
 const CACHE_TTL_MS = 15 * 60 * 1000; // 15 min
 
-function proxyUrl(targetUrl) {
+// Built-in fallback chain of public CORS proxies, tried in order after
+// a direct (no-proxy) attempt and after the user's configured proxy (if any).
+const BUILTIN_PROXY_CHAIN = [
+  (url) => 'https://corsproxy.io/?url=' + encodeURIComponent(url),
+  (url) => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url),
+  (url) => 'https://thingproxy.freeboard.io/fetch/' + url,
+  (url) => 'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(url)
+];
+
+function proxyList(targetUrl) {
   const s = Store.getSettings();
-  const proxy = s.corsProxy || DEFAULT_CORS_PROXY;
-  return proxy + encodeURIComponent(targetUrl);
+  const list = [];
+  if (s.corsProxy) list.push(s.corsProxy + encodeURIComponent(targetUrl));
+  BUILTIN_PROXY_CHAIN.forEach(fn => list.push(fn(targetUrl)));
+  return list;
 }
 
 async function fetchJsonWithFallback(directUrl, opts) {
+  const errors = [];
   try {
     const r = await fetch(directUrl, opts);
     if (r.ok) return await r.json();
-  } catch (e) { /* fall through to proxy */ }
-  const r2 = await fetch(proxyUrl(directUrl));
-  if (!r2.ok) throw new Error('Fetch failed (direct + proxy): ' + directUrl);
-  return await r2.json();
+    errors.push('direct: HTTP ' + r.status);
+  } catch (e) { errors.push('direct: ' + e.message); }
+
+  for (const proxied of proxyList(directUrl)) {
+    try {
+      const r = await fetch(proxied);
+      if (r.ok) return await r.json();
+      errors.push(proxied.split('?')[0] + ': HTTP ' + r.status);
+    } catch (e) { errors.push(proxied.split('?')[0] + ': ' + e.message); }
+  }
+  throw new Error('All sources failed for ' + directUrl + ' — ' + errors.join(' | '));
 }
 
 async function fetchTextWithFallback(directUrl) {
+  const errors = [];
   try {
     const r = await fetch(directUrl);
     if (r.ok) return await r.text();
-  } catch (e) { /* fall through */ }
-  const r2 = await fetch(proxyUrl(directUrl));
-  if (!r2.ok) throw new Error('Fetch failed (direct + proxy): ' + directUrl);
-  return await r2.text();
+    errors.push('direct: HTTP ' + r.status);
+  } catch (e) { errors.push('direct: ' + e.message); }
+
+  for (const proxied of proxyList(directUrl)) {
+    try {
+      const r = await fetch(proxied);
+      if (r.ok) return await r.text();
+      errors.push(proxied.split('?')[0] + ': HTTP ' + r.status);
+    } catch (e) { errors.push(proxied.split('?')[0] + ': ' + e.message); }
+  }
+  throw new Error('All sources failed for ' + directUrl + ' — ' + errors.join(' | '));
 }
 
-// ---------------- NSE Stocks ----------------
+// ---------------- Indian Stocks ----------------
+// NSE's own API needs a real browser session (cookies from visiting the
+// homepage first) — a plain proxied fetch usually gets blocked outright,
+// even through a working CORS proxy. Yahoo Finance's quote endpoint covers
+// NSE-listed symbols (via the ".NS" suffix) without that session
+// requirement, so it's tried first; NSE's official endpoint is kept as a
+// fallback in case Yahoo doesn't have a given symbol.
 Market.fetchNseQuote = async function (symbol) {
   const cacheKey = 'nse_' + symbol;
   const cached = Store.getPriceCache(cacheKey, CACHE_TTL_MS);
   if (cached) return cached;
 
+  // Try Yahoo Finance first
+  try {
+    const yUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}.NS`;
+    const data = await fetchJsonWithFallback(yUrl);
+    const price = data && data.chart && data.chart.result && data.chart.result[0]
+      ? data.chart.result[0].meta.regularMarketPrice : null;
+    if (price != null) {
+      const result = { price, asOf: new Date().toISOString() };
+      Store.setPriceCache(cacheKey, result);
+      return result;
+    }
+  } catch (e) { /* fall through to NSE official */ }
+
+  // Fallback: NSE's own (unofficial) API
   const url = `https://www.nseindia.com/api/quote-equity?symbol=${encodeURIComponent(symbol)}`;
-  const data = await fetchJsonWithFallback(url, {
-    headers: { 'Accept': 'application/json' }
-  });
+  const data = await fetchJsonWithFallback(url, { headers: { 'Accept': 'application/json' } });
   const price = data && data.priceInfo ? data.priceInfo.lastPrice : null;
-  if (price == null) throw new Error('No price in NSE response for ' + symbol);
+  if (price == null) throw new Error('No price found for ' + symbol + ' via Yahoo or NSE');
   const result = { price, asOf: new Date().toISOString() };
   Store.setPriceCache(cacheKey, result);
   return result;
@@ -144,6 +192,7 @@ Market.fetchUsdInr = async function () {
 };
 
 // ---------------- Bulk refresh ----------------
+// Refreshes all holdings' prices, returns { updated:[], failed:[{holding, error}] }
 Market.refreshAll = async function (onProgress) {
   const d = Store.load();
   const updated = [];

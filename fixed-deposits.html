@@ -37,7 +37,16 @@
               <div class="form-field"><label>Principal (₹)</label><input id="fdPrincipal" type="number" step="any" /></div>
               <div class="form-field"><label>Rate % p.a.</label><input id="fdRate" type="number" step="any" /></div>
               <div class="form-field"><label>Start date</label><input id="fdStart" type="date" /></div>
-              <div class="form-field"><label>Tenure (months)</label><input id="fdTenure" type="number" step="1" /></div>
+              <div class="form-field">
+                <label>Tenure</label>
+                <div class="input-group">
+                  <input id="fdTenureValue" type="number" step="1" placeholder="e.g. 555" />
+                  <select id="fdTenureUnit">
+                    <option value="months">Months</option>
+                    <option value="days">Days</option>
+                  </select>
+                </div>
+              </div>
               <div class="form-field"><label>Compounding</label>
                 <select id="fdComp">
                   <option value="quarterly">Quarterly</option>

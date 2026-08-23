@@ -1,14 +1,14 @@
 # Finance Tracker
 
-A local-first personal investment tracker with a light/dark theme system built for a data-dense fintech feel — not a generic dashboard template. Six pages: Stocks [IND] (NSE), Mutual Funds, Stocks [US] (incl. ETFs), Fixed Deposits, EPF, plus a dashboard for the full picture. Live prices for NSE stocks, mutual fund NAVs, and US stocks/ETFs.
+A local-first personal investment tracker with a light/dark theme system built for a data-dense fintech feel — not a generic dashboard template. Six pages: Indian Stocks (NSE), Mutual Funds, US Stocks (incl. ETFs), Fixed Deposits, EPF, plus a dashboard for the full picture. Live prices for NSE stocks, mutual fund NAVs, and US stocks/ETFs.
 
 **Design**: Inter for UI text, IBM Plex Mono (tabular numerals) for money figures and ticker symbols. Every live-fetched price shows a small freshness pulse — green (refreshed <15 min ago), amber (stale, refresh recommended), or gray (manually entered) — so you can see at a glance which numbers are current. Light/dark toggle in the header, remembers your choice, defaults to your OS setting on first visit.
 
 ## Pages
 
 - **`index.html`** — Dashboard: totals, gain/loss, XIRR, diversification metrics, allocation donut, top holdings by weight, full holdings table, invested-vs-current chart.
-- **`stocks-ind.html`** — Stocks [IND]: NSE holdings, qty, avg cost, LTP, current value, P&L, % change, weight, XIRR.
-- **`stocks-us.html`** — Stocks [US]: same breakdown for US stocks/ETFs, in USD with live INR conversion.
+- **`stocks-ind.html`** — Indian Stocks: NSE holdings, qty, avg cost, LTP, current value, P&L, % change, weight, XIRR.
+- **`stocks-us.html`** — US Stocks: same breakdown for US stocks/ETFs, in USD with live INR conversion.
 - **`mutual-funds.html`** — individual fund holdings, units, NAV, P&L, XIRR, category breakdown.
 - **`fixed-deposits.html`** — principal, rate, interest accrued so far, value at maturity, maturity timeline.
 - **`epf.html`** — accounts, EPS-aware contribution split, auto-accruing monthly contributions, and a forward balance projection graph.
@@ -78,9 +78,9 @@ Open **Settings** (top bar) on any page:
 
 | Source | Setup | Notes |
 |---|---|---|
-| Stocks [IND] (NSE) | none — routed through a CORS proxy | NSE has no public CORS-enabled API; the app tries a direct request, then the proxy URL in Settings. Swap the proxy or set a manual price per row if it stops working. |
+| Indian Stocks (NSE) | none — routed through a CORS proxy | NSE has no public CORS-enabled API; the app tries a direct request, then the proxy URL in Settings. Swap the proxy or set a manual price per row if it stops working. |
 | Mutual Funds | none | Uses AMFI's free daily NAV file, matched by scheme code. |
-| Stocks [US] | Alpha Vantage API key (free) | Get one at alphavantage.co/support/#api-key. Free tier is rate-limited (25 requests/day) — refresh sparingly with many US holdings. |
+| US Stocks | Alpha Vantage API key (free) | Get one at alphavantage.co/support/#api-key. Free tier is rate-limited (25 requests/day) — refresh sparingly with many US holdings. |
 | USD → INR | none | frankfurter.app (ECB rates) with a fallback; pin a manual rate in Settings if you prefer. |
 
 **↻ refresh prices** (top bar) pulls fresh NSE/MF/US prices + FX. Cached 15

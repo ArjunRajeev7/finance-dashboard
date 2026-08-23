@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<title>Finance Tracker — Stocks [US]</title>
+<title>Finance Tracker — US Stocks</title>
 <meta name="theme-color" content="#0B0E14" />
 <meta name="robots" content="noindex, nofollow" />
 <script>
@@ -30,7 +30,7 @@
         <div class="card-grid" id="summaryCards"></div>
 
         <div class="card">
-          <div class="card-head"><span class="eyebrow">Allocation within Stocks [US]</span></div>
+          <div class="card-head"><span class="eyebrow">Allocation within US Stocks</span></div>
           <div class="card-body" style="display:flex; gap:24px; flex-wrap:wrap; align-items:center;">
             <div id="allocHolder"></div>
             <div id="allocLegend" style="flex:1; min-width:200px;"></div>
@@ -58,7 +58,7 @@
   <script>
     (async () => {
       await Store.init();
-      renderShell('stocks-us.html', 'Stocks [US]');
+      renderShell('stocks-us.html', 'US Stocks');
       renderStockLikePage('US_STOCK');
     })();
     window.addEventListener('ft-store-updated', () => renderStockLikePage('US_STOCK'));

@@ -112,12 +112,34 @@ Finance.avgCost = function (holding) {
 // n = compounding periods per year
 const COMPOUNDING_N = { monthly: 12, quarterly: 4, yearly: 1, cumulative: 4 };
 
+function addDays(dateStr, days) {
+  const d = new Date(dateStr);
+  d.setDate(d.getDate() + days);
+  return d;
+}
+
+// Tenure can be entered in months (legacy default, fd.tenureMonths) or days
+// (fd.tenureUnit === 'days', fd.tenureValue) — e.g. many Indian FD schemes
+// are quoted as "555 days" rather than a round number of months.
+function fdTenureInfo(fd) {
+  if (fd.tenureUnit === 'days') return { unit: 'days', value: fd.tenureValue, years: fd.tenureValue / 365 };
+  const months = fd.tenureUnit === 'months' ? fd.tenureValue : fd.tenureMonths;
+  return { unit: 'months', value: months, years: months / 12 };
+}
+Finance.fdTenureInfo = fdTenureInfo;
+
+function fdMaturityDateStr(fd) {
+  const info = fdTenureInfo(fd);
+  const d = info.unit === 'days' ? addDays(fd.startDate, info.value) : addMonths(fd.startDate, info.value);
+  return d.toISOString().slice(0, 10);
+}
+
 Finance.fdCurrentValue = function (fd, asOfDate) {
   asOfDate = asOfDate || todayStr();
-  const maturity = addMonths(fd.startDate, fd.tenureMonths).toISOString().slice(0, 10);
+  const maturity = fdMaturityDateStr(fd);
   const isMatured = asOfDate >= maturity;
   if (isMatured) {
-    // use the exact month-based maturity calculation, not day-counted, so it
+    // use the exact tenure-based maturity calculation, not day-counted, so it
     // never drifts from fdMaturityValue due to leap-year day counts
     return { value: Finance.fdMaturityValue(fd).value, isMatured: true, maturityDate: maturity };
   }
@@ -129,8 +151,8 @@ Finance.fdCurrentValue = function (fd, asOfDate) {
 };
 
 Finance.fdMaturityValue = function (fd) {
-  const maturity = addMonths(fd.startDate, fd.tenureMonths).toISOString().slice(0, 10);
-  const years = fd.tenureMonths / 12;
+  const maturity = fdMaturityDateStr(fd);
+  const years = fdTenureInfo(fd).years;
   const n = COMPOUNDING_N[fd.compounding] || 4;
   const rate = fd.rate / 100;
   const value = fd.principal * Math.pow(1 + rate / n, n * years);

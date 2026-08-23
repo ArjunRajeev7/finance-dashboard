@@ -1,7 +1,7 @@
 {
   "name": "Finance Tracker",
   "short_name": "Finance",
-  "description": "Personal investment tracker \u2014 Stocks [IND], Stocks [US], Mutual Funds, Fixed Deposits, EPF.",
+  "description": "Personal investment tracker \u2014 Indian Stocks, US Stocks, Mutual Funds, Fixed Deposits, EPF.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",

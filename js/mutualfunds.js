@@ -2,9 +2,27 @@
    mutualfunds.js
    ============================================================ */
 
+const _mfSortState = { col: null, dir: 'desc' };
+
+function mfRowAccessor(row, key) {
+  switch (key) {
+    case 'name': return row.h.name;
+    case 'category': return row.h.category || '';
+    case 'units': return row.val.qty;
+    case 'avgNav': return row.val.avgCost;
+    case 'invested': return row.val.investedINR;
+    case 'currentNav': return row.val.priceInfo ? row.val.priceInfo.price : null;
+    case 'currentValue': return row.val.currentValueINR;
+    case 'pnl': return row.val.gainINR;
+    case 'pctChange': return row.val.gainPct;
+    case 'xirr': return row.val.xirr;
+    default: return null;
+  }
+}
+
 function renderMfPage() {
   const holdings = Store.load().holdings.IN_MF;
-  const rows = holdings.map(h => ({ h, val: Valuation.evalStockLike('IN_MF', h, 1) }));
+  let rows = holdings.map(h => ({ h, val: Valuation.evalStockLike('IN_MF', h, 1) }));
   const totalCurrent = rows.reduce((s, r) => s + (r.val.currentValueINR || r.val.investedINR), 0);
   const totalInvested = rows.reduce((s, r) => s + r.val.investedINR, 0);
   const totalGain = totalCurrent - totalInvested;
@@ -23,14 +41,16 @@ function renderMfPage() {
   });
   Charts.renderLegend(document.getElementById('allocLegend'), rows.map(r => ({ label: r.h.name })));
 
+  rows = sortRows(rows, _mfSortState, mfRowAccessor);
+
   const tableFrame = document.getElementById('tableFrame');
   tableFrame.innerHTML = `
     <div class="card-head"><span class="eyebrow">Holdings — ${holdings.length}</span></div>
     <div class="table-scroll">
       <table>
         <thead><tr>
-          <th>Scheme</th><th>Category</th><th>Units</th><th>Avg NAV</th><th>Invested</th>
-          <th>Current NAV</th><th>Current Value</th><th>P&amp;L</th><th>% Change</th><th>XIRR</th><th></th>
+          <th data-sort="name">Scheme</th><th data-sort="category">Category</th><th data-sort="units">Units</th><th data-sort="avgNav">Avg NAV</th><th data-sort="invested">Invested</th>
+          <th data-sort="currentNav">Current NAV</th><th data-sort="currentValue">Current Value</th><th data-sort="pnl">P&amp;L</th><th data-sort="pctChange">% Change</th><th data-sort="xirr">XIRR</th><th></th>
         </tr></thead>
         <tbody>
           ${rows.length ? rows.map(({ h, val }) => `
@@ -56,6 +76,7 @@ function renderMfPage() {
       </table>
     </div>
   `;
+  attachSortHandlers(tableFrame.querySelector('thead'), _mfSortState, renderMfPage);
   tableFrame.querySelectorAll('button[data-act]').forEach(btn => {
     btn.onclick = () => {
       const id = btn.dataset.id;

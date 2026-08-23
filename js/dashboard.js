@@ -58,7 +58,7 @@ function renderDiversityCards(snap) {
     <div class="stat-card">
       <div class="label">USD/INR Used</div>
       <div class="value">${Fmt.num(snap.usdInr, 2)}</div>
-      <div class="sub">applied to Stocks [US] valuation</div>
+      <div class="sub">applied to US Stocks valuation</div>
     </div>
   `;
 }
