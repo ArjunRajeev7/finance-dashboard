@@ -313,13 +313,13 @@ th.sortable.active .sort-arrow { opacity: 1; color: var(--accent); }
 }
 .info-trigger:hover { color: var(--accent); border-color: var(--accent); }
 .info-popover {
-  position: absolute; z-index: 40; background: var(--surface-raised);
+  position: absolute; z-index: 110; background: var(--surface-raised);
   border: 1px solid var(--border-strong); border-radius: var(--radius);
-  box-shadow: var(--shadow-modal); padding: 10px; min-width: 260px; max-width: 340px;
+  box-shadow: var(--shadow-modal); padding: 10px; width: max-content; max-width: min(480px, 92vw);
   font-size: 12px;
 }
-.info-popover table { font-size: 11.5px; }
-.info-popover th, .info-popover td { padding: 5px 8px; }
+.info-popover table { border-collapse: collapse; }
+.info-popover th, .info-popover td { padding: 5px 10px; white-space: nowrap; }
 
 /* tag input row */
 .tag-input-row { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; align-items: center; }

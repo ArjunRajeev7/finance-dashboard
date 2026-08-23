@@ -114,6 +114,59 @@ function renderMfPage() {
   }
 }
 
+function openMfImportModal() {
+  Importer.openModal({
+    title: 'Import mutual fund transactions',
+    templateFilename: 'mutual-funds-import-template.csv',
+    columns: [
+      { label: 'SchemeCode', required: true, hint: 'AMFI scheme code — used to match/create the fund' },
+      { label: 'SchemeName', required: true, hint: 'Full scheme name, used when creating a new fund' },
+      { label: 'Category', required: false, hint: 'e.g. Large Cap, Flexi/Multi Cap' },
+      { label: 'Folio', required: false },
+      { label: 'Date', required: true, hint: 'YYYY-MM-DD, or an actual Excel date cell' },
+      { label: 'Type', required: true, hint: 'BUY or SELL' },
+      { label: 'Units', required: true },
+      { label: 'NAV', required: true, hint: 'Per-unit NAV in INR, excluding fees' },
+      { label: 'Fees', required: false, hint: 'Default 0' }
+    ],
+    sampleRow: ['120503', 'Axis Bluechip Fund - Direct Growth', 'Large Cap', '12345', '2024-01-15', 'BUY', '100', '45.20', '0'],
+    onImport: async (rows) => {
+      const errors = [];
+      let success = 0;
+      const holdings = Store.load().holdings.IN_MF;
+      rows.forEach((row, i) => {
+        const rowNum = i + 2;
+        const schemeCode = (Importer.getField(row, 'SchemeCode', 'Scheme Code', 'Code') || '').toString().trim();
+        if (!schemeCode) { errors.push(`Row ${rowNum}: missing SchemeCode`); return; }
+        const date = Importer.normalizeDate(Importer.getField(row, 'Date'));
+        if (!date) { errors.push(`Row ${rowNum} (${schemeCode}): unrecognized Date`); return; }
+        const typeRaw = (Importer.getField(row, 'Type') || '').toString().trim().toUpperCase();
+        const type = typeRaw === 'BUY' || typeRaw === 'SELL' ? typeRaw : null;
+        if (!type) { errors.push(`Row ${rowNum} (${schemeCode}): Type must be BUY or SELL`); return; }
+        const qty = parseFloat(Importer.getField(row, 'Units', 'Quantity'));
+        if (!qty || qty <= 0) { errors.push(`Row ${rowNum} (${schemeCode}): invalid Units`); return; }
+        const price = parseFloat(Importer.getField(row, 'NAV', 'Price'));
+        if (!price || price <= 0) { errors.push(`Row ${rowNum} (${schemeCode}): invalid NAV`); return; }
+        const fees = parseFloat(Importer.getField(row, 'Fees')) || 0;
+
+        let holding = holdings.find(h => h.schemeCode === schemeCode);
+        if (!holding) {
+          const name = (Importer.getField(row, 'SchemeName', 'Scheme Name', 'Name') || schemeCode).toString().trim();
+          holding = Store.addHolding('IN_MF', {
+            schemeCode, name, symbol: name,
+            category: (Importer.getField(row, 'Category') || '').toString().trim(),
+            folio: (Importer.getField(row, 'Folio') || '').toString().trim()
+          });
+        }
+        Store.addTxn('IN_MF', holding.id, { date, type, qty, price, fees });
+        success++;
+      });
+      renderMfPage();
+      return { success, errors };
+    }
+  });
+}
+
 function openManualPriceModal(assetType, h) {
   openModal(`Manual price — ${h.symbol || h.name}`, `
     <p style="color:var(--text-muted); font-size:12.5px; margin-top:0;">Use this if the live API can't find this scheme. It's used until the next successful live fetch overrides it.</p>
@@ -245,6 +298,7 @@ function wireTxnModal(overlay, assetType, holdingId, render, getEditingId, setEd
     toast('Fund added — now log your purchase transactions', 'ok');
     renderMfPage();
   };
+  addFrame.querySelector('#importMfBtn').onclick = openMfImportModal;
 
   renderMfPage();
 })();

@@ -40,6 +40,7 @@ function defaultData() {
   return {
     version: 1,
     holdings: { IN_STOCK: [], IN_MF: [], US_STOCK: [], FD: [], EPF: [] },
+    dividends: [],
     activityLog: [],
     settings: {
       baseCurrency: 'INR',
@@ -58,6 +59,7 @@ function normalize(raw) {
   d.holdings = Object.assign({}, def.holdings, (raw && raw.holdings) || {});
   ASSET_TYPES.forEach(t => { if (!Array.isArray(d.holdings[t])) d.holdings[t] = []; });
   if (!Array.isArray(d.activityLog)) d.activityLog = [];
+  if (!Array.isArray(d.dividends)) d.dividends = [];
   d.settings = Object.assign({}, def.settings, (raw && raw.settings) || {});
   delete d._readme;
   return d;
@@ -218,6 +220,34 @@ const Store = {
     h.tags = (h.tags || []).filter(t => t !== tag);
     this.log('info', `Removed tag "${tag}" — ${h.symbol || h.name}`);
     this.save();
+  },
+
+  // ---------- Dividends ----------
+  addDividend(div) {
+    const d = this.load();
+    div.id = div.id || this.uid();
+    d.dividends.push(div);
+    this.log('info', `Logged dividend: ${div.symbol} — ${div.currency === 'USD' ? '$' : '₹'}${div.amount} on ${div.date}`);
+    this.save();
+    return div;
+  },
+  updateDividend(id, patch) {
+    const d = this.load();
+    const div = d.dividends.find(x => x.id === id);
+    if (div) Object.assign(div, patch);
+    this.log('info', `Edited dividend entry — ${div ? div.symbol : id}`);
+    this.save();
+    return div;
+  },
+  deleteDividend(id) {
+    const d = this.load();
+    const div = d.dividends.find(x => x.id === id);
+    d.dividends = d.dividends.filter(x => x.id !== id);
+    this.log('info', `Deleted dividend entry — ${div ? div.symbol : id}`);
+    this.save();
+  },
+  getDividends() {
+    return this.load().dividends;
   },
 
   // ---------- Settings ----------

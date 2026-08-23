@@ -35,17 +35,16 @@ function purchaseLotTooltipHtml(holding, currency) {
       <td>${Fmt.date(t.date)}</td>
       <td class="num">${Fmt.numExact(t.qty)}</td>
       <td class="num">${Fmt.moneyExact(t.price, currency)}</td>
-      <td class="num">${Fmt.moneyExact(t.qty * t.price, currency)}</td>
       <td class="num">${t.fees ? Fmt.moneyPrecise(t.fees, currency) : '—'}</td>
     </tr>
   `).join('');
   return `
-    <div style="font-weight:600; margin-bottom:6px;">Purchase lots — ${holding.symbol}</div>
-    <table style="width:100%;">
-      <thead><tr><th>Date</th><th>Qty</th><th>Price</th><th>Cost</th><th>Fees</th></tr></thead>
+    <div style="font-weight:600; margin-bottom:6px; white-space:nowrap;">Purchase lots — ${holding.symbol}</div>
+    <table>
+      <thead><tr><th>Date</th><th>Qty</th><th>Price</th><th>Fees</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>
-    ${totalFees ? `<div style="margin-top:8px; font-size:11px; color:var(--text-muted);">Total fees paid: ${Fmt.moneyPrecise(totalFees, currency)} — excluded from Avg Cost above</div>` : ''}
+    ${totalFees ? `<div style="margin-top:8px; font-size:11px; color:var(--text-muted); white-space:nowrap;">Total fees paid: ${Fmt.moneyPrecise(totalFees, currency)} — excluded from Avg Cost above</div>` : ''}
   `;
 }
 
@@ -96,7 +95,10 @@ function renderStockLikePage(assetType) {
 
   const addFrame = document.getElementById('addFrame');
   addFrame.innerHTML = `
-    <div class="card-head"><span class="eyebrow">Add ${isUS ? 'US stock / ETF' : 'NSE stock'}</span></div>
+    <div class="card-head">
+      <span class="eyebrow">Add ${isUS ? 'US stock / ETF' : 'NSE stock'}</span>
+      <button class="ghost" id="importBtn" style="font-size:12px;">Import CSV/Excel</button>
+    </div>
     <div class="card-body">
       <div class="inline-form">
         <div class="form-field"><label>Symbol${isUS ? '' : ' (NSE)'}</label><input id="newSym" placeholder="${isUS ? 'AAPL / VOO' : 'RELIANCE'}" /></div>
@@ -113,6 +115,7 @@ function renderStockLikePage(assetType) {
     toast(sym + ' added — now log your buy transactions', 'ok');
     renderStockLikePage(assetType);
   };
+  addFrame.querySelector('#importBtn').onclick = () => openStockImportModal(assetType, isUS);
 
   const sortState = _stockSortState[assetType];
   rows = sortRows(rows, sortState, stockRowAccessor);
@@ -228,6 +231,54 @@ function wireTagsModal(overlay, assetType, holdingId, render) {
     wireTagsModal(overlay, assetType, holdingId, render);
     renderStockLikePage(assetType);
   };
+}
+
+function openStockImportModal(assetType, isUS) {
+  const currency = isUS ? 'USD' : 'INR';
+  Importer.openModal({
+    title: `Import ${isUS ? 'US stock' : 'NSE stock'} transactions`,
+    templateFilename: (isUS ? 'us-stocks' : 'indian-stocks') + '-import-template.csv',
+    columns: [
+      { label: 'Symbol', required: true, hint: isUS ? 'e.g. AAPL' : 'NSE symbol, e.g. RELIANCE' },
+      { label: 'Name', required: false, hint: 'Display name — only used when creating a new holding' },
+      { label: 'Date', required: true, hint: 'YYYY-MM-DD, or an actual Excel date cell' },
+      { label: 'Type', required: true, hint: 'BUY or SELL' },
+      { label: 'Quantity', required: true, hint: 'Shares/units for this transaction' },
+      { label: 'Price', required: true, hint: `Per-share price in ${currency}, excluding fees` },
+      { label: 'Fees', required: false, hint: `Brokerage/commission in ${currency} for this transaction, default 0` }
+    ],
+    sampleRow: [isUS ? 'AAPL' : 'RELIANCE', isUS ? 'Apple Inc' : 'Reliance Industries', '2024-01-15', 'BUY', '10', isUS ? '185.50' : '2450.75', '20'],
+    onImport: async (rows) => {
+      const errors = [];
+      let success = 0;
+      const holdings = Store.load().holdings[assetType];
+      rows.forEach((row, i) => {
+        const rowNum = i + 2; // account for header row
+        const symbol = (Importer.getField(row, 'Symbol') || '').toString().trim().toUpperCase();
+        if (!symbol) { errors.push(`Row ${rowNum}: missing Symbol`); return; }
+        const date = Importer.normalizeDate(Importer.getField(row, 'Date'));
+        if (!date) { errors.push(`Row ${rowNum} (${symbol}): unrecognized Date`); return; }
+        const typeRaw = (Importer.getField(row, 'Type') || '').toString().trim().toUpperCase();
+        const type = typeRaw === 'BUY' || typeRaw === 'SELL' ? typeRaw : null;
+        if (!type) { errors.push(`Row ${rowNum} (${symbol}): Type must be BUY or SELL`); return; }
+        const qty = parseFloat(Importer.getField(row, 'Quantity', 'Qty'));
+        if (!qty || qty <= 0) { errors.push(`Row ${rowNum} (${symbol}): invalid Quantity`); return; }
+        const price = parseFloat(Importer.getField(row, 'Price'));
+        if (!price || price <= 0) { errors.push(`Row ${rowNum} (${symbol}): invalid Price`); return; }
+        const fees = parseFloat(Importer.getField(row, 'Fees')) || 0;
+
+        let holding = holdings.find(h => h.symbol === symbol);
+        if (!holding) {
+          const name = (Importer.getField(row, 'Name') || symbol).toString().trim();
+          holding = Store.addHolding(assetType, { symbol, name, exchange: isUS ? 'US' : 'NSE' });
+        }
+        Store.addTxn(assetType, holding.id, { date, type, qty, price, fees });
+        success++;
+      });
+      renderStockLikePage(assetType);
+      return { success, errors };
+    }
+  });
 }
 
 function openManualPriceModal(assetType, h) {

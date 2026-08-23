@@ -74,7 +74,8 @@ const NAV_ITEMS = [
   { href: 'stocks-us.html', label: 'US Stocks', icon: 'stocksUs' },
   { href: 'mutual-funds.html', label: 'Mutual Funds', icon: 'mutualFunds' },
   { href: 'fixed-deposits.html', label: 'Fixed Deposits', icon: 'fd' },
-  { href: 'epf.html', label: 'EPF', icon: 'epf' }
+  { href: 'epf.html', label: 'EPF', icon: 'epf' },
+  { href: 'dividends.html', label: 'Dividends', icon: 'coin' }
 ];
 
 function renderShell(activeHref, pageTitle) {

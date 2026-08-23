@@ -6,6 +6,11 @@ A local-first personal investment tracker with a light/dark theme system built f
 
 ## What's new in this revision
 
+- **CSV/Excel import** on Stocks [Indian/US] and Mutual Funds pages: upload a .csv or .xlsx of transactions, matched to existing holdings by symbol/scheme code (creates new holdings automatically for unmatched symbols). Click the **i** next to the modal title for the exact column list, or **Download template** for a ready-made starting file.
+- **Dividends page** (new): log dividends manually or via CSV/Excel import, for both Indian and US stocks. Shows total received, this-year total, per-market totals, a sortable full history, and a yearly breakdown table. USD dividends are converted to INR using the *current* FX rate (not the historical rate on the payment date — noted on the page).
+- **Purchase-lot tooltip cleanup**: removed the redundant Cost column (it was just Qty×Price, already visible), keeping Date/Qty/Price/Fees. The popover now sizes itself to fit its content instead of clipping text.
+- Fixed a z-index bug where the "i" tooltip could render behind an open modal.
+
 - **Activity log** (Settings): every add/edit/delete and price-refresh result is recorded, with errors flagged distinctly. Kept in `data.json` itself (`activityLog` array, capped at the latest 25), so it travels with your data file.
 - **Editable transactions**: stock, mutual fund, and FD entries can now be corrected via an **Edit** button, not just deleted and re-added.
 - **Purchase-lot tooltip** (the small "i" next to Qty): shows every buy lot's exact date/quantity/price/cost/fees with full decimal precision — no rounding — plus a running fee total. Avg Cost in the main table is now the pure per-share price (fees excluded); fees are itemized separately in the tooltip.
