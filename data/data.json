@@ -8,6 +8,7 @@
     "FD": [],
     "EPF": []
   },
+  "activityLog": [],
   "settings": {
     "baseCurrency": "INR",
     "apiKeys": { "alphaVantage": "" },

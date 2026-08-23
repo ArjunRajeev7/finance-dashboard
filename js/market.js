@@ -208,6 +208,7 @@ Market.refreshAll = async function (onProgress) {
       updated.push(h.symbol);
     } catch (e) {
       failed.push({ holding: h.symbol, error: e.message });
+      Store.log('error', `Price refresh failed — ${h.symbol}: ${e.message}`);
     }
     onProgress && onProgress();
   }
@@ -219,6 +220,7 @@ Market.refreshAll = async function (onProgress) {
       updated.push(h.name);
     } catch (e) {
       failed.push({ holding: h.name, error: e.message });
+      Store.log('error', `NAV refresh failed — ${h.name}: ${e.message}`);
     }
     onProgress && onProgress();
   }
@@ -230,10 +232,12 @@ Market.refreshAll = async function (onProgress) {
       updated.push(h.symbol);
     } catch (e) {
       failed.push({ holding: h.symbol, error: e.message });
+      Store.log('error', `Price refresh failed — ${h.symbol}: ${e.message}`);
     }
     onProgress && onProgress();
   }
 
+  Store.log(failed.length ? 'error' : 'info', `Refresh complete: ${updated.length} updated, ${failed.length} failed`);
   return { updated, failed, usdInr };
 };
 

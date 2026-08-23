@@ -13,6 +13,17 @@ const Fmt = {
     currency = currency || '₹';
     return (n < 0 ? '-' : '') + currency + Math.abs(n).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   },
+  // full precision, no rounding — used in the purchase-lot tooltip where
+  // "exact" matters more than tidy alignment
+  moneyExact(n, currency) {
+    if (n == null || isNaN(n)) return '—';
+    currency = currency || '₹';
+    return (n < 0 ? '-' : '') + currency + Math.abs(n).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 10 });
+  },
+  numExact(n) {
+    if (n == null || isNaN(n)) return '—';
+    return n.toLocaleString('en-IN', { maximumFractionDigits: 10 });
+  },
   gainMoney(n, currency) {
     if (n == null || isNaN(n)) return '—';
     currency = currency || '₹';
@@ -229,6 +240,7 @@ window.closeModal = closeModal;
 
 function openSettingsModal() {
   const s = Store.getSettings();
+  const logs = Store.getLogs();
   openModal('Settings', `
     <div class="form-field" style="margin-bottom:12px;">
       <label>Alpha Vantage API key (US stocks)</label>
@@ -251,12 +263,23 @@ function openSettingsModal() {
     </div>
     <input type="file" id="importFile" accept="application/json" style="display:none;" />
     <p style="color:var(--text-faint); font-size:11.5px; margin-top:16px; line-height:1.6;">
-      <b style="color:var(--text-muted);">How data persists:</b> data/data.json in the site is the source of truth.
+      <b style="color:var(--text-muted);">How data persists:</b> data/data.json in the site is the source of truth,
+      including these settings (your API key and proxy URL are saved into the file too — importing/reloading
+      a data.json restores them along with your holdings).
       Edits in this browser are cached locally so you don't lose work on refresh —
       but to make them show up on another device, click <b>Save to file</b>, then
       replace data/data.json in your repo with the downloaded file and commit.
       <b>Reload from file</b> discards local edits and re-reads data/data.json.
     </p>
+
+    <div style="margin-top:22px; padding-top:16px; border-top:1px solid var(--border);">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
+        <span class="eyebrow" style="font-size:11px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:var(--text-muted);">Activity log</span>
+        <button class="ghost" id="clearLogsBtn" style="font-size:11.5px; padding:4px 9px;">Clear</button>
+      </div>
+      <div class="log-list" id="logList">${renderLogRows(logs)}</div>
+      <p style="color:var(--text-faint); font-size:11px; margin-top:8px;">Every add/edit/delete and price-refresh result is recorded here (and saved into data.json). Only the latest 25 are kept — older entries drop off automatically.</p>
+    </div>
   `, (overlay) => {
     overlay.querySelector('#saveSettings').onclick = () => {
       Store.updateSettings({
@@ -304,9 +327,25 @@ function openSettingsModal() {
         setTimeout(() => location.reload(), 400);
       }
     };
+    overlay.querySelector('#clearLogsBtn').onclick = () => {
+      Store.clearLogs();
+      overlay.querySelector('#logList').innerHTML = renderLogRows([]);
+      toast('Logs cleared', 'ok');
+    };
   });
 }
 window.openSettingsModal = openSettingsModal;
+
+function renderLogRows(logs) {
+  if (!logs.length) return '<div class="empty-state" style="padding:18px;">No activity yet</div>';
+  return logs.map(l => `
+    <div class="log-row">
+      <span class="log-time">${new Date(l.ts).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
+      <span class="log-badge ${l.level}">${l.level}</span>
+      <span class="log-msg">${l.message}</span>
+    </div>
+  `).join('');
+}
 
 // ---------------- Sortable table helper ----------------
 // state: {col: string|null, dir: 'asc'|'desc'}. accessor(row, key) returns the raw comparable value.

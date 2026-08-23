@@ -4,6 +4,19 @@ A local-first personal investment tracker with a light/dark theme system built f
 
 **Design**: Inter for UI text, IBM Plex Mono (tabular numerals) for money figures and ticker symbols. Every live-fetched price shows a small freshness pulse — green (refreshed <15 min ago), amber (stale, refresh recommended), or gray (manually entered) — so you can see at a glance which numbers are current. Light/dark toggle in the header, remembers your choice, defaults to your OS setting on first visit.
 
+## What's new in this revision
+
+- **Activity log** (Settings): every add/edit/delete and price-refresh result is recorded, with errors flagged distinctly. Kept in `data.json` itself (`activityLog` array, capped at the latest 25), so it travels with your data file.
+- **Editable transactions**: stock, mutual fund, and FD entries can now be corrected via an **Edit** button, not just deleted and re-added.
+- **Purchase-lot tooltip** (the small "i" next to Qty): shows every buy lot's exact date/quantity/price/cost/fees with full decimal precision — no rounding — plus a running fee total. Avg Cost in the main table is now the pure per-share price (fees excluded); fees are itemized separately in the tooltip.
+- **Dual-currency display** on the US Stocks page: INR as the primary figure, USD as a smaller line underneath, both in the summary cards and the table.
+- **Sortable table headers** (Stocks, Mutual Funds) — click to sort, click again to reverse, including the Tags column.
+- **Tags** (Indian Stocks): mark holdings as IPO allotments or anything custom via a free-text tag.
+- **Hoverable allocation charts**: hovering a donut segment pops it slightly and shows a tooltip with the exact label/value.
+- **Desktop sidebar collapse**: the hamburger icon now toggles an icon-only collapsed sidebar on desktop (not just the mobile overlay).
+- Settings (API key, CORS proxy, FX override) are saved into `data.json` and round-trip through export/import.
+
+
 ## Pages
 
 - **`index.html`** — Dashboard: totals, gain/loss, XIRR, diversification metrics, allocation donut, top holdings by weight, full holdings table, invested-vs-current chart.

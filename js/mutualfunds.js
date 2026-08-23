@@ -135,18 +135,25 @@ function openManualPriceModal(assetType, h) {
 }
 
 function openTxnModal(assetType, h) {
+  let editingId = null;
+
   const render = () => {
     const holding = Store.getHolding(assetType, h.id);
     const txnRows = holding.txns.map(t => `
-      <tr>
+      <tr ${editingId === t.id ? 'style="background:var(--accent-tint);"' : ''}>
         <td>${Fmt.date(t.date)}</td>
         <td>${t.type}</td>
-        <td class="num">${Fmt.num(t.qty, 3)}</td>
-        <td class="num">${Fmt.moneyPrecise(t.price)}</td>
-        <td class="num">${Fmt.money(t.fees || 0)}</td>
-        <td><button data-tid="${t.id}" class="danger" style="padding:4px 8px;font-size:11.5px;">Del</button></td>
+        <td class="num">${Fmt.numExact(t.qty)}</td>
+        <td class="num">${Fmt.moneyExact(t.price)}</td>
+        <td class="num">${Fmt.moneyPrecise(t.fees || 0)}</td>
+        <td><div class="row-actions">
+          <button data-edit-tid="${t.id}" class="ghost" style="padding:4px 8px;font-size:11.5px;">Edit</button>
+          <button data-tid="${t.id}" class="danger" style="padding:4px 8px;font-size:11.5px;">Del</button>
+        </div></td>
       </tr>
     `).join('') || `<tr><td colspan="6" class="empty-state">No transactions yet</td></tr>`;
+
+    const editingTxn = editingId ? holding.txns.find(t => t.id === editingId) : null;
     return `
       <div class="table-scroll" style="max-height:260px; overflow-y:auto; margin-bottom:14px;">
         <table>
@@ -154,28 +161,48 @@ function openTxnModal(assetType, h) {
           <tbody>${txnRows}</tbody>
         </table>
       </div>
-      <div class="form-grid">
-        <div class="form-field"><label>Date</label><input id="txDate" type="date" value="${Finance.todayStr()}" /></div>
-        <div class="form-field"><label>Type</label><select id="txType"><option value="BUY">BUY (purchase/SIP)</option><option value="SELL">SELL (redemption)</option></select></div>
-        <div class="form-field"><label>Units</label><input id="txQty" type="number" step="any" /></div>
-        <div class="form-field"><label>NAV (INR)</label><input id="txPrice" type="number" step="any" /></div>
-        <div class="form-field"><label>Fees (optional)</label><input id="txFees" type="number" step="any" value="0" /></div>
-        <div class="form-field"><button id="addTxnBtn" class="primary">+ Add txn</button></div>
+      <div style="${editingTxn ? 'border:1px solid var(--accent); border-radius:var(--radius); padding:10px;' : ''}">
+        ${editingTxn ? `<div style="font-size:11.5px; color:var(--accent); font-weight:600; margin-bottom:8px;">Editing transaction from ${Fmt.date(editingTxn.date)} — Cancel below to add a new one instead</div>` : ''}
+        <div class="form-grid">
+          <div class="form-field"><label>Date</label><input id="txDate" type="date" value="${editingTxn ? editingTxn.date : Finance.todayStr()}" /></div>
+          <div class="form-field"><label>Type</label><select id="txType"><option value="BUY" ${editingTxn && editingTxn.type === 'BUY' ? 'selected' : ''}>BUY (purchase/SIP)</option><option value="SELL" ${editingTxn && editingTxn.type === 'SELL' ? 'selected' : ''}>SELL (redemption)</option></select></div>
+          <div class="form-field"><label>Units</label><input id="txQty" type="number" step="any" value="${editingTxn ? editingTxn.qty : ''}" /></div>
+          <div class="form-field"><label>NAV (INR)</label><input id="txPrice" type="number" step="any" value="${editingTxn ? editingTxn.price : ''}" /></div>
+          <div class="form-field"><label>Fees (optional)</label><input id="txFees" type="number" step="any" value="${editingTxn ? (editingTxn.fees || 0) : 0}" /></div>
+          <div class="form-field" style="display:flex; gap:6px;">
+            <button id="addTxnBtn" class="primary">${editingTxn ? 'Save changes' : '+ Add txn'}</button>
+            ${editingTxn ? '<button id="cancelEditBtn" class="ghost">Cancel</button>' : ''}
+          </div>
+        </div>
       </div>
     `;
   };
-  const overlay = openModal(`Transactions — ${h.name}`, render(), (overlay) => wireTxnModal(overlay, assetType, h.id, render));
+  const overlay = openModal(`Transactions — ${h.name}`, render(), (overlay) => wireTxnModal(overlay, assetType, h.id, render, () => editingId, (v) => { editingId = v; }));
 }
 
-function wireTxnModal(overlay, assetType, holdingId, render) {
+function wireTxnModal(overlay, assetType, holdingId, render, getEditingId, setEditingId) {
   overlay.querySelectorAll('button[data-tid]').forEach(btn => {
     btn.onclick = () => {
       Store.deleteTxn(assetType, holdingId, btn.dataset.tid);
+      if (getEditingId() === btn.dataset.tid) setEditingId(null);
       overlay.querySelector('.modal-body').innerHTML = render();
-      wireTxnModal(overlay, assetType, holdingId, render);
+      wireTxnModal(overlay, assetType, holdingId, render, getEditingId, setEditingId);
       renderMfPage();
     };
   });
+  overlay.querySelectorAll('button[data-edit-tid]').forEach(btn => {
+    btn.onclick = () => {
+      setEditingId(btn.dataset.editTid);
+      overlay.querySelector('.modal-body').innerHTML = render();
+      wireTxnModal(overlay, assetType, holdingId, render, getEditingId, setEditingId);
+    };
+  });
+  const cancelBtn = overlay.querySelector('#cancelEditBtn');
+  if (cancelBtn) cancelBtn.onclick = () => {
+    setEditingId(null);
+    overlay.querySelector('.modal-body').innerHTML = render();
+    wireTxnModal(overlay, assetType, holdingId, render, getEditingId, setEditingId);
+  };
   const addBtn = overlay.querySelector('#addTxnBtn');
   if (addBtn) addBtn.onclick = () => {
     const date = overlay.querySelector('#txDate').value;
@@ -184,10 +211,17 @@ function wireTxnModal(overlay, assetType, holdingId, render) {
     const price = parseFloat(overlay.querySelector('#txPrice').value);
     const fees = parseFloat(overlay.querySelector('#txFees').value) || 0;
     if (!date || !qty || !price) return toast('Fill date, units and nav', 'err');
-    Store.addTxn(assetType, holdingId, { date, type, qty, price, fees });
-    toast('Transaction added', 'ok');
+    const editingId = getEditingId();
+    if (editingId) {
+      Store.updateTxn(assetType, holdingId, editingId, { date, type, qty, price, fees });
+      toast('Transaction updated', 'ok');
+      setEditingId(null);
+    } else {
+      Store.addTxn(assetType, holdingId, { date, type, qty, price, fees });
+      toast('Transaction added', 'ok');
+    }
     overlay.querySelector('.modal-body').innerHTML = render();
-    wireTxnModal(overlay, assetType, holdingId, render);
+    wireTxnModal(overlay, assetType, holdingId, render, getEditingId, setEditingId);
     renderMfPage();
   };
 }

@@ -305,10 +305,11 @@ th.sortable.active .sort-arrow { opacity: 1; color: var(--accent); }
 /* info tooltip ("i" icon + popover) */
 .info-trigger {
   display: inline-flex; align-items: center; justify-content: center;
-  width: 16px; height: 16px; border-radius: 50%;
+  width: 15px; height: 15px; min-width: 15px; padding: 0; margin-left: 5px;
+  border-radius: 50%; line-height: 1;
   border: 1px solid var(--border-strong); color: var(--text-faint);
-  font-size: 10px; font-weight: 700; cursor: pointer; background: var(--surface);
-  vertical-align: middle; margin-left: 5px; flex-shrink: 0;
+  font-size: 9px; font-weight: 700; cursor: pointer; background: var(--surface);
+  vertical-align: middle; flex-shrink: 0; box-sizing: border-box;
 }
 .info-trigger:hover { color: var(--accent); border-color: var(--accent); }
 .info-popover {
@@ -329,6 +330,26 @@ th.sortable.active .sort-arrow { opacity: 1; color: var(--accent); }
 .input-group { display: flex; }
 .input-group input { border-top-right-radius: 0; border-bottom-right-radius: 0; border-right: none; }
 .input-group select { width: auto; border-top-left-radius: 0; border-bottom-left-radius: 0; }
+
+/* activity log (Settings) */
+.log-list { max-height: 260px; overflow-y: auto; border: 1px solid var(--border); border-radius: var(--radius-sm); }
+.log-row { display: flex; gap: 10px; padding: 8px 10px; border-bottom: 1px solid var(--border); font-size: 12px; align-items: baseline; }
+.log-row:last-child { border-bottom: none; }
+.log-row .log-time { font-family: var(--font-mono); color: var(--text-faint); font-size: 10.5px; white-space: nowrap; }
+.log-row .log-badge { font-size: 9.5px; padding: 1px 6px; border-radius: 100px; text-transform: uppercase; font-weight: 700; flex-shrink: 0; }
+.log-row .log-badge.info { background: var(--accent-tint); color: var(--accent); }
+.log-row .log-badge.error { background: var(--loss-tint); color: var(--loss); }
+.log-row .log-msg { color: var(--text); flex: 1; }
+
+/* chart hover tooltip */
+.chart-tooltip {
+  position: fixed; z-index: 80; pointer-events: none;
+  background: var(--surface-raised); border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm); box-shadow: var(--shadow-modal);
+  padding: 6px 10px; font-size: 12px; color: var(--text);
+  white-space: nowrap;
+}
+.chart-tooltip .val { color: var(--text-muted); font-family: var(--font-mono); margin-left: 6px; }
 
 /* toasts */
 .toast-region { position: fixed; bottom: 18px; right: 18px; z-index: 60; display: flex; flex-direction: column; gap: 8px; }

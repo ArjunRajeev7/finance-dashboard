@@ -47,7 +47,7 @@ function renderFdPage() {
               <td class="num up">${Fmt.gainMoney(accrued)}</td>
               <td class="num">${Fmt.money(maturity.value)}</td>
               <td>${val.isMatured ? '<span class="badge">Matured</span>' : `<span class="badge">${daysLeft}d left</span>`}</td>
-              <td><div class="row-actions"><button data-id="${h.id}" class="danger">Del</button></div></td>
+              <td><div class="row-actions"><button data-edit-id="${h.id}" class="ghost">Edit</button><button data-id="${h.id}" class="danger">Del</button></div></td>
             </tr>`;
           }).join('') : `<tr><td colspan="11" class="empty-state">No FDs yet — add one above</td></tr>`}
         </tbody>
@@ -63,6 +63,9 @@ function renderFdPage() {
         renderFdPage();
       }
     };
+  });
+  tableFrame.querySelectorAll('button[data-edit-id]').forEach(btn => {
+    btn.onclick = () => openFdEditModal(btn.dataset.editId);
   });
 
   const timeline = document.getElementById('timelineHolder');
@@ -85,6 +88,53 @@ function renderFdPage() {
       `;
     }).join('');
   }
+}
+
+function openFdEditModal(id) {
+  const h = Store.getHolding('FD', id);
+  const tenureInfo = Finance.fdTenureInfo(h);
+  openModal(`Edit FD — ${h.bank}`, `
+    <div class="form-grid">
+      <div class="form-field"><label>Bank / issuer</label><input id="efdBank" value="${h.bank}" /></div>
+      <div class="form-field"><label>Principal (₹)</label><input id="efdPrincipal" type="number" step="any" value="${h.principal}" /></div>
+      <div class="form-field"><label>Rate % p.a.</label><input id="efdRate" type="number" step="any" value="${h.rate}" /></div>
+      <div class="form-field"><label>Start date</label><input id="efdStart" type="date" value="${h.startDate}" /></div>
+      <div class="form-field">
+        <label>Tenure</label>
+        <div class="input-group">
+          <input id="efdTenureValue" type="number" step="1" value="${tenureInfo.value}" />
+          <select id="efdTenureUnit">
+            <option value="months" ${tenureInfo.unit === 'months' ? 'selected' : ''}>Months</option>
+            <option value="days" ${tenureInfo.unit === 'days' ? 'selected' : ''}>Days</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-field"><label>Compounding</label>
+        <select id="efdComp">
+          <option value="quarterly" ${h.compounding === 'quarterly' ? 'selected' : ''}>Quarterly</option>
+          <option value="monthly" ${h.compounding === 'monthly' ? 'selected' : ''}>Monthly</option>
+          <option value="yearly" ${h.compounding === 'yearly' ? 'selected' : ''}>Yearly</option>
+        </select>
+      </div>
+      <div class="form-field"><button id="saveFdEditBtn" class="primary">Save changes</button></div>
+    </div>
+  `, (overlay) => {
+    overlay.querySelector('#saveFdEditBtn').onclick = () => {
+      const bank = overlay.querySelector('#efdBank').value.trim();
+      const principal = parseFloat(overlay.querySelector('#efdPrincipal').value);
+      const rate = parseFloat(overlay.querySelector('#efdRate').value);
+      const startDate = overlay.querySelector('#efdStart').value;
+      const tenureValue = parseInt(overlay.querySelector('#efdTenureValue').value, 10);
+      const tenureUnit = overlay.querySelector('#efdTenureUnit').value;
+      const compounding = overlay.querySelector('#efdComp').value;
+      if (!bank || !principal || !rate || !startDate || !tenureValue) return toast('Fill all fields', 'err');
+      Store.updateHolding('FD', id, { bank, principal, rate, startDate, tenureUnit, tenureValue, compounding });
+      Store.log('info', `Edited FD — ${bank}`);
+      toast('FD updated', 'ok');
+      closeModal();
+      renderFdPage();
+    };
+  });
 }
 
 (async () => {

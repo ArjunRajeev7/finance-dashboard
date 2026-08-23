@@ -20,6 +20,19 @@ Charts.cssVar = function (name) {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 };
 
+// shared floating tooltip element for chart hovers
+function getChartTooltipEl() {
+  let el = document.getElementById('chartTooltip');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'chartTooltip';
+    el.className = 'chart-tooltip';
+    el.style.display = 'none';
+    document.body.appendChild(el);
+  }
+  return el;
+}
+
 // entries: [{label, value}]
 Charts.renderDonut = function (holder, entries, opts) {
   opts = opts || {};
@@ -32,9 +45,10 @@ Charts.renderDonut = function (holder, entries, opts) {
   let offset = 0, arcs = '';
   entries.forEach((e, i) => {
     const len = (e.value / total) * circumference;
-    arcs += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${palette[i % 6]}"
+    arcs += `<circle class="donut-arc" data-label="${e.label}" data-value="${e.value}" data-base-width="${strokeW}"
+      cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${palette[i % 6]}"
       stroke-width="${strokeW}" stroke-dasharray="${Math.max(len - 2, 0)} ${circumference - len + 2}"
-      stroke-linecap="round"
+      stroke-linecap="round" style="cursor:pointer; transition: stroke-width .12s;"
       stroke-dashoffset="${-offset}" transform="rotate(-90 ${cx} ${cy})" />`;
     offset += len;
   });
@@ -46,6 +60,27 @@ Charts.renderDonut = function (holder, entries, opts) {
       ${opts.centerLine2 ? `<text x="${cx}" y="${cy + 14}" text-anchor="middle" fill="${Charts.cssVar('--text-muted')}" font-size="10.5" font-family="var(--font-mono)">${opts.centerLine2}</text>` : ''}
     </svg>
   `;
+
+  const tooltip = getChartTooltipEl();
+  holder.querySelectorAll('.donut-arc').forEach(arc => {
+    const baseWidth = parseFloat(arc.dataset.baseWidth);
+    arc.addEventListener('mouseenter', () => {
+      arc.setAttribute('stroke-width', baseWidth + 6);
+      const label = arc.dataset.label;
+      const value = parseFloat(arc.dataset.value);
+      const pct = ((value / total) * 100).toFixed(1);
+      tooltip.innerHTML = `${label}<span class="val">${Fmt.moneyCompact(value)} · ${pct}%</span>`;
+      tooltip.style.display = 'block';
+    });
+    arc.addEventListener('mousemove', (e) => {
+      tooltip.style.left = (e.clientX + 14) + 'px';
+      tooltip.style.top = (e.clientY + 14) + 'px';
+    });
+    arc.addEventListener('mouseleave', () => {
+      arc.setAttribute('stroke-width', baseWidth);
+      tooltip.style.display = 'none';
+    });
+  });
 };
 
 Charts.renderLegend = function (holder, entries) {

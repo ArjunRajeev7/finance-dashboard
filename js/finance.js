@@ -95,17 +95,27 @@ Finance.currentQty = function (holding) {
 };
 
 Finance.investedAmount = function (holding) {
-  // net capital currently deployed (buys - sells), for holdings still open
+  // net capital currently deployed (buys - sells) INCLUDING fees — this is
+  // the real cost basis used for P&L/XIRR, since fees are money actually spent.
   return (holding.txns || []).reduce((sum, t) => {
     return sum + (t.type === 'BUY' ? (t.qty * t.price + (t.fees || 0)) : -(t.qty * t.price - (t.fees || 0)));
   }, 0);
 };
 
+// Average cost EXCLUDING fees — this is "what you paid per share", the number
+// people mean by "average cost" on a broker statement. Fees are shown
+// separately (Finance.totalFees) rather than blended into the price.
 Finance.avgCost = function (holding) {
   const qty = Finance.currentQty(holding);
   if (qty <= 0) return 0;
-  const invested = Finance.investedAmount(holding);
-  return invested / qty;
+  const costExFees = (holding.txns || []).reduce((sum, t) => {
+    return sum + (t.type === 'BUY' ? t.qty * t.price : -(t.qty * t.price));
+  }, 0);
+  return costExFees / qty;
+};
+
+Finance.totalFees = function (holding) {
+  return (holding.txns || []).reduce((sum, t) => sum + (t.fees || 0), 0);
 };
 
 // ---------------- Fixed Deposits ----------------

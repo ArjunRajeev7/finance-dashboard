@@ -40,6 +40,7 @@ function defaultData() {
   return {
     version: 1,
     holdings: { IN_STOCK: [], IN_MF: [], US_STOCK: [], FD: [], EPF: [] },
+    activityLog: [],
     settings: {
       baseCurrency: 'INR',
       apiKeys: { alphaVantage: '' },
@@ -56,6 +57,7 @@ function normalize(raw) {
   const d = Object.assign({}, def, raw || {});
   d.holdings = Object.assign({}, def.holdings, (raw && raw.holdings) || {});
   ASSET_TYPES.forEach(t => { if (!Array.isArray(d.holdings[t])) d.holdings[t] = []; });
+  if (!Array.isArray(d.activityLog)) d.activityLog = [];
   d.settings = Object.assign({}, def.settings, (raw && raw.settings) || {});
   delete d._readme;
   return d;
@@ -110,6 +112,22 @@ const Store = {
     return 'id_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8);
   },
 
+  // ---------- Activity log (kept in the data file, capped at 25) ----------
+  log(level, message) {
+    const d = this.load();
+    if (!Array.isArray(d.activityLog)) d.activityLog = [];
+    d.activityLog.push({ ts: new Date().toISOString(), level, message });
+    if (d.activityLog.length > 25) d.activityLog = d.activityLog.slice(d.activityLog.length - 25);
+    this.save();
+  },
+  getLogs() {
+    return this.load().activityLog.slice().reverse(); // most recent first
+  },
+  clearLogs() {
+    this.load().activityLog = [];
+    this.save();
+  },
+
   // ---------- Holdings CRUD ----------
   addHolding(assetType, holding) {
     const d = this.load();
@@ -121,6 +139,7 @@ const Store = {
       if (!holding.interestRates) holding.interestRates = [];
     }
     d.holdings[assetType].push(holding);
+    this.log('info', `Added ${ASSET_LABELS[assetType]} holding: ${holding.symbol || holding.name || holding.employerName || holding.bank}`);
     this.save();
     return holding;
   },
@@ -135,7 +154,10 @@ const Store = {
 
   deleteHolding(assetType, id) {
     const d = this.load();
+    const h = d.holdings[assetType].find(x => x.id === id);
+    const label = h ? (h.symbol || h.name || h.employerName || h.bank) : id;
     d.holdings[assetType] = d.holdings[assetType].filter(x => x.id !== id);
+    this.log('info', `Deleted ${ASSET_LABELS[assetType]} holding: ${label}`);
     this.save();
   },
 
@@ -150,6 +172,7 @@ const Store = {
     txn.id = txn.id || this.uid();
     h.txns.push(txn);
     h.txns.sort((a, b) => a.date.localeCompare(b.date));
+    this.log('info', `Added transaction (${txn.type} ${txn.qty} @ ${txn.price}) — ${h.symbol || h.name}`);
     this.save();
     return txn;
   },
@@ -160,6 +183,7 @@ const Store = {
     const t = h.txns.find(x => x.id === txnId);
     if (t) Object.assign(t, patch);
     h.txns.sort((a, b) => a.date.localeCompare(b.date));
+    this.log('info', `Edited transaction — ${h.symbol || h.name}`);
     this.save();
     return t;
   },
@@ -168,6 +192,7 @@ const Store = {
     const h = this.getHolding(assetType, holdingId);
     if (!h) return;
     h.txns = h.txns.filter(x => x.id !== txnId);
+    this.log('info', `Deleted transaction — ${h.symbol || h.name}`);
     this.save();
   },
 
@@ -175,19 +200,23 @@ const Store = {
     return this.addTxn('EPF', holdingId, Object.assign({ type: 'contribution' }, contrib));
   },
 
-  // ---------- Tags (Indian Stocks: IPO, broker account, etc.) ----------
+  // ---------- Tags (Indian Stocks: IPO, custom, etc.) ----------
   addTag(assetType, holdingId, tag) {
     const h = this.getHolding(assetType, holdingId);
     if (!h) return;
     if (!h.tags) h.tags = [];
     tag = (tag || '').trim();
-    if (tag && !h.tags.includes(tag)) h.tags.push(tag);
+    if (tag && !h.tags.includes(tag)) {
+      h.tags.push(tag);
+      this.log('info', `Tagged "${tag}" — ${h.symbol || h.name}`);
+    }
     this.save();
   },
   removeTag(assetType, holdingId, tag) {
     const h = this.getHolding(assetType, holdingId);
     if (!h) return;
     h.tags = (h.tags || []).filter(t => t !== tag);
+    this.log('info', `Removed tag "${tag}" — ${h.symbol || h.name}`);
     this.save();
   },
 

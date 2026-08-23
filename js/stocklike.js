@@ -2,7 +2,7 @@
    stocklike.js — shared renderer for IN_STOCK and US_STOCK pages
    ============================================================ */
 
-const TAG_PRESETS = ['IPO', "Father's A/C", "Sister's A/C", 'Own A/C'];
+const TAG_PRESETS = ['IPO'];
 
 const _stockSortState = {
   IN_STOCK: { col: null, dir: 'desc' },
@@ -21,6 +21,7 @@ function stockRowAccessor(row, key) {
     case 'pctChange': return row.val.gainPct;
     case 'weight': return row.weight;
     case 'xirr': return row.val.xirr;
+    case 'tags': return (row.h.tags || []).join(', ');
     default: return null;
   }
 }
@@ -28,20 +29,23 @@ function stockRowAccessor(row, key) {
 function purchaseLotTooltipHtml(holding, currency) {
   const buys = (holding.txns || []).filter(t => t.type === 'BUY').sort((a, b) => a.date.localeCompare(b.date));
   if (!buys.length) return `<div style="color:var(--text-faint);">No purchases logged yet</div>`;
+  const totalFees = Finance.totalFees(holding);
   const rows = buys.map(t => `
     <tr>
       <td>${Fmt.date(t.date)}</td>
-      <td class="num">${Fmt.num(t.qty, t.qty % 1 === 0 ? 0 : 4)}</td>
-      <td class="num">${Fmt.moneyPrecise(t.price, currency)}</td>
-      <td class="num">${Fmt.money(t.qty * t.price, currency)}</td>
+      <td class="num">${Fmt.numExact(t.qty)}</td>
+      <td class="num">${Fmt.moneyExact(t.price, currency)}</td>
+      <td class="num">${Fmt.moneyExact(t.qty * t.price, currency)}</td>
+      <td class="num">${t.fees ? Fmt.moneyPrecise(t.fees, currency) : '—'}</td>
     </tr>
   `).join('');
   return `
     <div style="font-weight:600; margin-bottom:6px;">Purchase lots — ${holding.symbol}</div>
     <table style="width:100%;">
-      <thead><tr><th>Date</th><th>Qty</th><th>Price</th><th>Cost</th></tr></thead>
+      <thead><tr><th>Date</th><th>Qty</th><th>Price</th><th>Cost</th><th>Fees</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>
+    ${totalFees ? `<div style="margin-top:8px; font-size:11px; color:var(--text-muted);">Total fees paid: ${Fmt.moneyPrecise(totalFees, currency)} — excluded from Avg Cost above</div>` : ''}
   `;
 }
 
@@ -60,7 +64,6 @@ function renderStockLikePage(assetType) {
   const totalGain = totalCurrent - totalInvested;
   rows.forEach(r => { r.weight = totalCurrent ? ((r.val.currentValueINR || 0) / totalCurrent) * 100 : 0; });
 
-  // ---- summary cards ----
   if (isUS) {
     const totalInvestedUSD = rows.reduce((s, r) => s + r.val.investedNative, 0);
     const totalCurrentUSD = rows.reduce((s, r) => s + (r.val.currentValueNative || r.val.investedNative), 0);
@@ -91,7 +94,6 @@ function renderStockLikePage(assetType) {
     if (legendHolder) Charts.renderLegend(legendHolder, rows.map(r => ({ label: r.h.symbol })));
   }
 
-  // ---- add form ----
   const addFrame = document.getElementById('addFrame');
   addFrame.innerHTML = `
     <div class="card-head"><span class="eyebrow">Add ${isUS ? 'US stock / ETF' : 'NSE stock'}</span></div>
@@ -112,7 +114,6 @@ function renderStockLikePage(assetType) {
     renderStockLikePage(assetType);
   };
 
-  // ---- sort + table ----
   const sortState = _stockSortState[assetType];
   rows = sortRows(rows, sortState, stockRowAccessor);
 
@@ -125,7 +126,7 @@ function renderStockLikePage(assetType) {
         <thead><tr>
           <th data-sort="symbol">Symbol</th><th data-sort="qty">Qty</th><th data-sort="avgCost">Avg Cost</th><th data-sort="invested">Invested</th>
           <th data-sort="ltp">LTP</th><th data-sort="currentValue">Current Value</th><th data-sort="pnl">P&amp;L</th><th data-sort="pctChange">% Change</th>
-          <th data-sort="weight">Weight</th><th data-sort="xirr">XIRR</th>${isIN ? '<th>Tags</th>' : ''}<th></th>
+          <th data-sort="weight">Weight</th><th data-sort="xirr">XIRR</th>${isIN ? '<th data-sort="tags">Tags</th>' : ''}<th></th>
         </tr></thead>
         <tbody>
           ${rows.length ? rows.map(({ h, val, weight }) => {
@@ -249,19 +250,27 @@ function openManualPriceModal(assetType, h) {
   });
 }
 
+// ---------------- Transactions modal (add + edit) ----------------
 function openTxnModal(assetType, h, isUS) {
+  let editingId = null; // txn id currently being edited, or null for "add" mode
+
   const render = () => {
     const holding = Store.getHolding(assetType, h.id);
     const txnRows = holding.txns.map(t => `
-      <tr>
+      <tr ${editingId === t.id ? 'style="background:var(--accent-tint);"' : ''}>
         <td>${Fmt.date(t.date)}</td>
         <td>${t.type}</td>
-        <td class="num">${Fmt.num(t.qty, t.qty % 1 === 0 ? 0 : 4)}</td>
-        <td class="num">${Fmt.moneyPrecise(t.price, isUS ? '$' : '₹')}</td>
-        <td class="num">${Fmt.money(t.fees || 0, isUS ? '$' : '₹')}</td>
-        <td><button data-tid="${t.id}" class="danger" style="padding:4px 8px;font-size:11.5px;">Del</button></td>
+        <td class="num">${Fmt.numExact(t.qty)}</td>
+        <td class="num">${Fmt.moneyExact(t.price, isUS ? '$' : '₹')}</td>
+        <td class="num">${Fmt.moneyPrecise(t.fees || 0, isUS ? '$' : '₹')}</td>
+        <td><div class="row-actions">
+          <button data-edit-tid="${t.id}" class="ghost" style="padding:4px 8px;font-size:11.5px;">Edit</button>
+          <button data-tid="${t.id}" class="danger" style="padding:4px 8px;font-size:11.5px;">Del</button>
+        </div></td>
       </tr>
     `).join('') || `<tr><td colspan="6" class="empty-state">No transactions yet</td></tr>`;
+
+    const editingTxn = editingId ? holding.txns.find(t => t.id === editingId) : null;
     return `
       <div class="table-scroll" style="max-height:260px; overflow-y:auto; margin-bottom:14px;">
         <table>
@@ -269,28 +278,48 @@ function openTxnModal(assetType, h, isUS) {
           <tbody>${txnRows}</tbody>
         </table>
       </div>
-      <div class="form-grid">
-        <div class="form-field"><label>Date</label><input id="txDate" type="date" value="${Finance.todayStr()}" /></div>
-        <div class="form-field"><label>Type</label><select id="txType"><option value="BUY">BUY</option><option value="SELL">SELL</option></select></div>
-        <div class="form-field"><label>Qty</label><input id="txQty" type="number" step="any" /></div>
-        <div class="form-field"><label>Price (${isUS ? 'USD' : 'INR'})</label><input id="txPrice" type="number" step="any" /></div>
-        <div class="form-field"><label>Fees (optional)</label><input id="txFees" type="number" step="any" value="0" /></div>
-        <div class="form-field"><button id="addTxnBtn" class="primary">+ Add txn</button></div>
+      <div style="${editingTxn ? 'border:1px solid var(--accent); border-radius:var(--radius); padding:10px;' : ''}">
+        ${editingTxn ? `<div style="font-size:11.5px; color:var(--accent); font-weight:600; margin-bottom:8px;">Editing transaction from ${Fmt.date(editingTxn.date)} — Cancel below to add a new one instead</div>` : ''}
+        <div class="form-grid">
+          <div class="form-field"><label>Date</label><input id="txDate" type="date" value="${editingTxn ? editingTxn.date : Finance.todayStr()}" /></div>
+          <div class="form-field"><label>Type</label><select id="txType"><option value="BUY" ${editingTxn && editingTxn.type === 'BUY' ? 'selected' : ''}>BUY</option><option value="SELL" ${editingTxn && editingTxn.type === 'SELL' ? 'selected' : ''}>SELL</option></select></div>
+          <div class="form-field"><label>Qty</label><input id="txQty" type="number" step="any" value="${editingTxn ? editingTxn.qty : ''}" /></div>
+          <div class="form-field"><label>Price (${isUS ? 'USD' : 'INR'})</label><input id="txPrice" type="number" step="any" value="${editingTxn ? editingTxn.price : ''}" /></div>
+          <div class="form-field"><label>Fees (optional)</label><input id="txFees" type="number" step="any" value="${editingTxn ? (editingTxn.fees || 0) : 0}" /></div>
+          <div class="form-field" style="display:flex; gap:6px;">
+            <button id="addTxnBtn" class="primary">${editingTxn ? 'Save changes' : '+ Add txn'}</button>
+            ${editingTxn ? '<button id="cancelEditBtn" class="ghost">Cancel</button>' : ''}
+          </div>
+        </div>
       </div>
     `;
   };
-  const overlay = openModal(`Transactions — ${h.symbol}`, render(), (overlay) => wireTxnModal(overlay, assetType, h.id, render));
+  const overlay = openModal(`Transactions — ${h.symbol}`, render(), (overlay) => wireTxnModal(overlay, assetType, h.id, render, () => editingId, (v) => { editingId = v; }));
 }
 
-function wireTxnModal(overlay, assetType, holdingId, render) {
+function wireTxnModal(overlay, assetType, holdingId, render, getEditingId, setEditingId) {
   overlay.querySelectorAll('button[data-tid]').forEach(btn => {
     btn.onclick = () => {
       Store.deleteTxn(assetType, holdingId, btn.dataset.tid);
+      if (getEditingId() === btn.dataset.tid) setEditingId(null);
       overlay.querySelector('.modal-body').innerHTML = render();
-      wireTxnModal(overlay, assetType, holdingId, render);
+      wireTxnModal(overlay, assetType, holdingId, render, getEditingId, setEditingId);
       renderStockLikePage(assetType);
     };
   });
+  overlay.querySelectorAll('button[data-edit-tid]').forEach(btn => {
+    btn.onclick = () => {
+      setEditingId(btn.dataset.editTid);
+      overlay.querySelector('.modal-body').innerHTML = render();
+      wireTxnModal(overlay, assetType, holdingId, render, getEditingId, setEditingId);
+    };
+  });
+  const cancelBtn = overlay.querySelector('#cancelEditBtn');
+  if (cancelBtn) cancelBtn.onclick = () => {
+    setEditingId(null);
+    overlay.querySelector('.modal-body').innerHTML = render();
+    wireTxnModal(overlay, assetType, holdingId, render, getEditingId, setEditingId);
+  };
   const addBtn = overlay.querySelector('#addTxnBtn');
   if (addBtn) addBtn.onclick = () => {
     const date = overlay.querySelector('#txDate').value;
@@ -299,10 +328,17 @@ function wireTxnModal(overlay, assetType, holdingId, render) {
     const price = parseFloat(overlay.querySelector('#txPrice').value);
     const fees = parseFloat(overlay.querySelector('#txFees').value) || 0;
     if (!date || !qty || !price) return toast('Fill date, qty and price', 'err');
-    Store.addTxn(assetType, holdingId, { date, type, qty, price, fees });
-    toast('Transaction added', 'ok');
+    const editingId = getEditingId();
+    if (editingId) {
+      Store.updateTxn(assetType, holdingId, editingId, { date, type, qty, price, fees });
+      toast('Transaction updated', 'ok');
+      setEditingId(null);
+    } else {
+      Store.addTxn(assetType, holdingId, { date, type, qty, price, fees });
+      toast('Transaction added', 'ok');
+    }
     overlay.querySelector('.modal-body').innerHTML = render();
-    wireTxnModal(overlay, assetType, holdingId, render);
+    wireTxnModal(overlay, assetType, holdingId, render, getEditingId, setEditingId);
     renderStockLikePage(assetType);
   };
 }
