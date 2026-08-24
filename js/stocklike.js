@@ -26,22 +26,28 @@ function stockRowAccessor(row, key) {
   }
 }
 
+function ownerChipHtml(owner) {
+  if (!owner) return `<span class="owner-chip empty" title="No account tag set">—</span>`;
+  return `<span class="owner-chip" title="${owner}">${owner}</span>`;
+}
+
 function purchaseLotTooltipHtml(holding, currency) {
-  const buys = (holding.txns || []).filter(t => t.type === 'BUY').sort((a, b) => a.date.localeCompare(b.date));
-  if (!buys.length) return `<div style="color:var(--text-faint);">No purchases logged yet</div>`;
+  const lots = (holding.txns || []).filter(t => t.type === 'BUY' || t.type === 'BONUS').sort((a, b) => a.date.localeCompare(b.date));
+  if (!lots.length) return `<div style="color:var(--text-faint);">No purchases logged yet</div>`;
   const totalFees = Finance.totalFees(holding);
-  const rows = buys.map(t => `
+  const rows = lots.map(t => `
     <tr>
+      <td>${ownerChipHtml(t.owner)}</td>
       <td>${Fmt.date(t.date)}</td>
       <td class="num">${Fmt.numExact(t.qty)}</td>
-      <td class="num">${Fmt.moneyExact(t.price, currency)}</td>
+      <td class="num">${t.type === 'BONUS' ? '<span class="badge bonus">Bonus</span>' : Fmt.moneyExact(t.price, currency)}</td>
       <td class="num">${t.fees ? Fmt.moneyPrecise(t.fees, currency) : '—'}</td>
     </tr>
   `).join('');
   return `
     <div style="font-weight:600; margin-bottom:6px; white-space:nowrap;">Purchase lots — ${holding.symbol}</div>
     <table>
-      <thead><tr><th>Date</th><th>Qty</th><th>Price</th><th>Fees</th></tr></thead>
+      <thead><tr><th></th><th>Date</th><th>Qty</th><th>Price</th><th>Fees</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>
     ${totalFees ? `<div style="margin-top:8px; font-size:11px; color:var(--text-muted); white-space:nowrap;">Total fees paid: ${Fmt.moneyPrecise(totalFees, currency)} — excluded from Avg Cost above</div>` : ''}
@@ -242,12 +248,13 @@ function openStockImportModal(assetType, isUS) {
       { label: 'Symbol', required: true, hint: isUS ? 'e.g. AAPL' : 'NSE symbol, e.g. RELIANCE' },
       { label: 'Name', required: false, hint: 'Display name — only used when creating a new holding' },
       { label: 'Date', required: true, hint: 'YYYY-MM-DD, or an actual Excel date cell' },
-      { label: 'Type', required: true, hint: 'BUY or SELL' },
+      { label: 'Type', required: true, hint: 'BUY, SELL, or BONUS (free shares — Price can be 0 or blank)' },
       { label: 'Quantity', required: true, hint: 'Shares/units for this transaction' },
-      { label: 'Price', required: true, hint: `Per-share price in ${currency}, excluding fees` },
-      { label: 'Fees', required: false, hint: `Brokerage/commission in ${currency} for this transaction, default 0` }
+      { label: 'Price', required: true, hint: `Per-share price in ${currency}, excluding fees (0 for BONUS)` },
+      { label: 'Fees', required: false, hint: `Brokerage/commission in ${currency} for this transaction, default 0` },
+      { label: 'Owner', required: false, hint: '1–2 letter account tag, e.g. AR — shown as a small circle next to each lot' }
     ],
-    sampleRow: [isUS ? 'AAPL' : 'RELIANCE', isUS ? 'Apple Inc' : 'Reliance Industries', '2024-01-15', 'BUY', '10', isUS ? '185.50' : '2450.75', '20'],
+    sampleRow: [isUS ? 'AAPL' : 'RELIANCE', isUS ? 'Apple Inc' : 'Reliance Industries', '2024-01-15', 'BUY', '10', isUS ? '185.50' : '2450.75', '20', 'AR'],
     onImport: async (rows) => {
       const errors = [];
       let success = 0;
@@ -259,20 +266,22 @@ function openStockImportModal(assetType, isUS) {
         const date = Importer.normalizeDate(Importer.getField(row, 'Date'));
         if (!date) { errors.push(`Row ${rowNum} (${symbol}): unrecognized Date`); return; }
         const typeRaw = (Importer.getField(row, 'Type') || '').toString().trim().toUpperCase();
-        const type = typeRaw === 'BUY' || typeRaw === 'SELL' ? typeRaw : null;
-        if (!type) { errors.push(`Row ${rowNum} (${symbol}): Type must be BUY or SELL`); return; }
+        const type = ['BUY', 'SELL', 'BONUS'].includes(typeRaw) ? typeRaw : null;
+        if (!type) { errors.push(`Row ${rowNum} (${symbol}): Type must be BUY, SELL, or BONUS`); return; }
         const qty = parseFloat(Importer.getField(row, 'Quantity', 'Qty'));
         if (!qty || qty <= 0) { errors.push(`Row ${rowNum} (${symbol}): invalid Quantity`); return; }
-        const price = parseFloat(Importer.getField(row, 'Price'));
-        if (!price || price <= 0) { errors.push(`Row ${rowNum} (${symbol}): invalid Price`); return; }
+        const priceRaw = Importer.getField(row, 'Price');
+        const price = type === 'BONUS' && (priceRaw === undefined || priceRaw === '') ? 0 : parseFloat(priceRaw);
+        if (isNaN(price) || price < 0) { errors.push(`Row ${rowNum} (${symbol}): invalid Price`); return; }
         const fees = parseFloat(Importer.getField(row, 'Fees')) || 0;
+        const owner = (Importer.getField(row, 'Owner', 'Account') || '').toString().trim().toUpperCase().slice(0, 2);
 
         let holding = holdings.find(h => h.symbol === symbol);
         if (!holding) {
           const name = (Importer.getField(row, 'Name') || symbol).toString().trim();
           holding = Store.addHolding(assetType, { symbol, name, exchange: isUS ? 'US' : 'NSE' });
         }
-        Store.addTxn(assetType, holding.id, { date, type, qty, price, fees });
+        Store.addTxn(assetType, holding.id, { date, type, qty, price, fees, owner });
         success++;
       });
       renderStockLikePage(assetType);
@@ -309,43 +318,53 @@ function openTxnModal(assetType, h, isUS) {
     const holding = Store.getHolding(assetType, h.id);
     const txnRows = holding.txns.map(t => `
       <tr ${editingId === t.id ? 'style="background:var(--accent-tint);"' : ''}>
+        <td>${ownerChipHtml(t.owner)}</td>
         <td>${Fmt.date(t.date)}</td>
-        <td>${t.type}</td>
+        <td>${t.type === 'BONUS' ? '<span class="badge bonus">Bonus</span>' : t.type}</td>
         <td class="num">${Fmt.numExact(t.qty)}</td>
-        <td class="num">${Fmt.moneyExact(t.price, isUS ? '$' : '₹')}</td>
+        <td class="num">${t.type === 'BONUS' && !t.price ? '—' : Fmt.moneyExact(t.price, isUS ? '$' : '₹')}</td>
         <td class="num">${Fmt.moneyPrecise(t.fees || 0, isUS ? '$' : '₹')}</td>
         <td><div class="row-actions">
           <button data-edit-tid="${t.id}" class="ghost" style="padding:4px 8px;font-size:11.5px;">Edit</button>
           <button data-tid="${t.id}" class="danger" style="padding:4px 8px;font-size:11.5px;">Del</button>
         </div></td>
       </tr>
-    `).join('') || `<tr><td colspan="6" class="empty-state">No transactions yet</td></tr>`;
+    `).join('') || `<tr><td colspan="7" class="empty-state">No transactions yet</td></tr>`;
 
     const editingTxn = editingId ? holding.txns.find(t => t.id === editingId) : null;
+    const editingType = editingTxn ? editingTxn.type : 'BUY';
     return `
       <div class="table-scroll" style="max-height:260px; overflow-y:auto; margin-bottom:14px;">
         <table>
-          <thead><tr><th>Date</th><th>Type</th><th>Qty</th><th>Price</th><th>Fees</th><th></th></tr></thead>
+          <thead><tr><th></th><th>Date</th><th>Type</th><th>Qty</th><th>Price</th><th>Fees</th><th></th></tr></thead>
           <tbody>${txnRows}</tbody>
         </table>
       </div>
       <div style="${editingTxn ? 'border:1px solid var(--accent); border-radius:var(--radius); padding:10px;' : ''}">
         ${editingTxn ? `<div style="font-size:11.5px; color:var(--accent); font-weight:600; margin-bottom:8px;">Editing transaction from ${Fmt.date(editingTxn.date)} — Cancel below to add a new one instead</div>` : ''}
         <div class="form-grid">
+          <div class="form-field"><label>Account tag (1–2 letters, optional)</label><input id="txOwner" class="owner-chip-input" maxlength="2" value="${editingTxn ? (editingTxn.owner || '') : ''}" placeholder="AR" /></div>
           <div class="form-field"><label>Date</label><input id="txDate" type="date" value="${editingTxn ? editingTxn.date : Finance.todayStr()}" /></div>
-          <div class="form-field"><label>Type</label><select id="txType"><option value="BUY" ${editingTxn && editingTxn.type === 'BUY' ? 'selected' : ''}>BUY</option><option value="SELL" ${editingTxn && editingTxn.type === 'SELL' ? 'selected' : ''}>SELL</option></select></div>
+          <div class="form-field"><label>Type</label><select id="txType">
+            <option value="BUY" ${editingType === 'BUY' ? 'selected' : ''}>BUY</option>
+            <option value="SELL" ${editingType === 'SELL' ? 'selected' : ''}>SELL</option>
+            <option value="BONUS" ${editingType === 'BONUS' ? 'selected' : ''}>BONUS (free shares)</option>
+          </select></div>
           <div class="form-field"><label>Qty</label><input id="txQty" type="number" step="any" value="${editingTxn ? editingTxn.qty : ''}" /></div>
-          <div class="form-field"><label>Price (${isUS ? 'USD' : 'INR'})</label><input id="txPrice" type="number" step="any" value="${editingTxn ? editingTxn.price : ''}" /></div>
+          <div class="form-field"><label>Price (${isUS ? 'USD' : 'INR'})</label><input id="txPrice" type="number" step="any" value="${editingTxn ? editingTxn.price : (editingType === 'BONUS' ? '0' : '')}" /></div>
           <div class="form-field"><label>Fees (optional)</label><input id="txFees" type="number" step="any" value="${editingTxn ? (editingTxn.fees || 0) : 0}" /></div>
           <div class="form-field" style="display:flex; gap:6px;">
             <button id="addTxnBtn" class="primary">${editingTxn ? 'Save changes' : '+ Add txn'}</button>
             ${editingTxn ? '<button id="cancelEditBtn" class="ghost">Cancel</button>' : ''}
           </div>
         </div>
+        <p style="color:var(--text-faint); font-size:11px; margin:8px 0 0;">BONUS = free shares from a bonus issue — enter Qty received, leave Price at 0. This dilutes your average cost per share correctly without changing what you actually paid in.</p>
       </div>
     `;
   };
-  const overlay = openModal(`Transactions — ${h.symbol}`, render(), (overlay) => wireTxnModal(overlay, assetType, h.id, render, () => editingId, (v) => { editingId = v; }));
+  const overlay = openModal(`Transactions — ${h.symbol}`, render(), (overlay) => {
+    wireTxnModal(overlay, assetType, h.id, render, () => editingId, (v) => { editingId = v; });
+  });
 }
 
 function wireTxnModal(overlay, assetType, holdingId, render, getEditingId, setEditingId) {
@@ -371,21 +390,28 @@ function wireTxnModal(overlay, assetType, holdingId, render, getEditingId, setEd
     overlay.querySelector('.modal-body').innerHTML = render();
     wireTxnModal(overlay, assetType, holdingId, render, getEditingId, setEditingId);
   };
+  const typeSel = overlay.querySelector('#txType');
+  if (typeSel) typeSel.onchange = () => {
+    if (typeSel.value === 'BONUS') overlay.querySelector('#txPrice').value = '0';
+  };
   const addBtn = overlay.querySelector('#addTxnBtn');
   if (addBtn) addBtn.onclick = () => {
+    const owner = overlay.querySelector('#txOwner').value.trim().toUpperCase().slice(0, 2);
     const date = overlay.querySelector('#txDate').value;
     const type = overlay.querySelector('#txType').value;
     const qty = parseFloat(overlay.querySelector('#txQty').value);
     const price = parseFloat(overlay.querySelector('#txPrice').value);
     const fees = parseFloat(overlay.querySelector('#txFees').value) || 0;
-    if (!date || !qty || !price) return toast('Fill date, qty and price', 'err');
+    if (!date || isNaN(qty) || qty <= 0 || isNaN(price) || price < 0) {
+      return toast('Fill date and qty; price must be 0 or more (0 is fine for BONUS shares)', 'err');
+    }
     const editingId = getEditingId();
     if (editingId) {
-      Store.updateTxn(assetType, holdingId, editingId, { date, type, qty, price, fees });
+      Store.updateTxn(assetType, holdingId, editingId, { date, type, qty, price, fees, owner });
       toast('Transaction updated', 'ok');
       setEditingId(null);
     } else {
-      Store.addTxn(assetType, holdingId, { date, type, qty, price, fees });
+      Store.addTxn(assetType, holdingId, { date, type, qty, price, fees, owner });
       toast('Transaction added', 'ok');
     }
     overlay.querySelector('.modal-body').innerHTML = render();

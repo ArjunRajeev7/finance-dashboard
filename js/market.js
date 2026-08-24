@@ -74,30 +74,45 @@ async function fetchTextWithFallback(directUrl) {
 // NSE-listed symbols (via the ".NS" suffix) without that session
 // requirement, so it's tried first; NSE's official endpoint is kept as a
 // fallback in case Yahoo doesn't have a given symbol.
+// ---------------- Indian Stocks ----------------
+// NSE's own API needs a real browser session (cookies from visiting the
+// homepage first) — a plain proxied fetch usually gets blocked outright,
+// even through a working CORS proxy. Yahoo Finance's quote endpoint covers
+// both exchanges without that session requirement, so it's tried first —
+// NSE (.NS suffix), then BSE (.BO suffix) for symbols only listed there
+// (e.g. NSDL, POLYMED); NSE's official endpoint is kept as a last resort.
 Market.fetchNseQuote = async function (symbol) {
   const cacheKey = 'nse_' + symbol;
   const cached = Store.getPriceCache(cacheKey, CACHE_TTL_MS);
   if (cached) return cached;
 
-  // Try Yahoo Finance first
-  try {
-    const yUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}.NS`;
+  async function tryYahoo(suffix, source) {
+    const yUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}${suffix}`;
     const data = await fetchJsonWithFallback(yUrl);
     const price = data && data.chart && data.chart.result && data.chart.result[0]
       ? data.chart.result[0].meta.regularMarketPrice : null;
-    if (price != null) {
-      const result = { price, asOf: new Date().toISOString() };
-      Store.setPriceCache(cacheKey, result);
-      return result;
-    }
+    if (price == null) throw new Error('no price for ' + suffix);
+    return { price, asOf: new Date().toISOString(), exchange: source };
+  }
+
+  try {
+    const result = await tryYahoo('.NS', 'NSE');
+    Store.setPriceCache(cacheKey, result);
+    return result;
+  } catch (e) { /* not on NSE (or Yahoo has no NSE data for it) — try BSE */ }
+
+  try {
+    const result = await tryYahoo('.BO', 'BSE');
+    Store.setPriceCache(cacheKey, result);
+    return result;
   } catch (e) { /* fall through to NSE official */ }
 
-  // Fallback: NSE's own (unofficial) API
+  // Last resort: NSE's own (unofficial) API
   const url = `https://www.nseindia.com/api/quote-equity?symbol=${encodeURIComponent(symbol)}`;
   const data = await fetchJsonWithFallback(url, { headers: { 'Accept': 'application/json' } });
   const price = data && data.priceInfo ? data.priceInfo.lastPrice : null;
-  if (price == null) throw new Error('No price found for ' + symbol + ' via Yahoo or NSE');
-  const result = { price, asOf: new Date().toISOString() };
+  if (price == null) throw new Error('No price found for ' + symbol + ' via Yahoo (NSE/BSE) or NSE official API');
+  const result = { price, asOf: new Date().toISOString(), exchange: 'NSE' };
   Store.setPriceCache(cacheKey, result);
   return result;
 };
@@ -204,7 +219,7 @@ Market.refreshAll = async function (onProgress) {
   for (const h of d.holdings.IN_STOCK) {
     try {
       const q = await Market.fetchNseQuote(h.symbol);
-      Store.updateHolding('IN_STOCK', h.id, { lastPrice: q.price, lastPriceAt: q.asOf, priceSource: 'NSE' });
+      Store.updateHolding('IN_STOCK', h.id, { lastPrice: q.price, lastPriceAt: q.asOf, priceSource: q.exchange || 'NSE' });
       updated.push(h.symbol);
     } catch (e) {
       failed.push({ holding: h.symbol, error: e.message });

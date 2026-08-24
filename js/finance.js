@@ -74,12 +74,18 @@ Finance.xirr = function (cashflows) {
   return rate; // decimal e.g. 0.142 = 14.2%
 };
 
+// BONUS shares (free allotments) add quantity like a BUY but at zero cost —
+// treating them as a BUY with price 0 in every formula below automatically
+// does the right thing: cost basis is unaffected, quantity increases, and
+// average cost per share dilutes correctly, exactly like a real bonus issue.
+function isShareInflow(t) { return t.type === 'BUY' || t.type === 'BONUS'; }
+
 // Build cashflows for a stock/MF holding given a current market price
 Finance.holdingCashflows = function (holding, currentPrice, asOfDate) {
   asOfDate = asOfDate || todayStr();
   const flows = (holding.txns || []).map(t => ({
     date: t.date,
-    amount: t.type === 'BUY'
+    amount: isShareInflow(t)
       ? -(t.qty * t.price + (t.fees || 0))
       : (t.qty * t.price - (t.fees || 0))
   }));
@@ -91,14 +97,14 @@ Finance.holdingCashflows = function (holding, currentPrice, asOfDate) {
 };
 
 Finance.currentQty = function (holding) {
-  return (holding.txns || []).reduce((q, t) => q + (t.type === 'BUY' ? t.qty : -t.qty), 0);
+  return (holding.txns || []).reduce((q, t) => q + (isShareInflow(t) ? t.qty : -t.qty), 0);
 };
 
 Finance.investedAmount = function (holding) {
   // net capital currently deployed (buys - sells) INCLUDING fees — this is
   // the real cost basis used for P&L/XIRR, since fees are money actually spent.
   return (holding.txns || []).reduce((sum, t) => {
-    return sum + (t.type === 'BUY' ? (t.qty * t.price + (t.fees || 0)) : -(t.qty * t.price - (t.fees || 0)));
+    return sum + (isShareInflow(t) ? (t.qty * t.price + (t.fees || 0)) : -(t.qty * t.price - (t.fees || 0)));
   }, 0);
 };
 
@@ -109,7 +115,7 @@ Finance.avgCost = function (holding) {
   const qty = Finance.currentQty(holding);
   if (qty <= 0) return 0;
   const costExFees = (holding.txns || []).reduce((sum, t) => {
-    return sum + (t.type === 'BUY' ? t.qty * t.price : -(t.qty * t.price));
+    return sum + (isShareInflow(t) ? t.qty * t.price : -(t.qty * t.price));
   }, 0);
   return costExFees / qty;
 };

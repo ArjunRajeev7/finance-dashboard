@@ -311,6 +311,18 @@ th.sortable.active .sort-arrow { opacity: 1; color: var(--accent); }
   font-size: 9px; font-weight: 700; cursor: pointer; background: var(--surface);
   vertical-align: middle; flex-shrink: 0; box-sizing: border-box;
 }
+.owner-chip {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 17px; height: 17px; min-width: 17px; padding: 0;
+  border-radius: 50%; line-height: 1; box-sizing: border-box;
+  border: 1px solid var(--accent); color: var(--accent); background: var(--accent-tint);
+  font-size: 8px; font-weight: 700; letter-spacing: -0.02em;
+  vertical-align: middle; flex-shrink: 0; cursor: default;
+  text-transform: uppercase;
+}
+.owner-chip.empty { border-style: dashed; color: var(--text-faint); background: transparent; border-color: var(--border-strong); }
+.owner-chip-input { width: 44px !important; text-align: center; text-transform: uppercase; padding: 6px 4px !important; }
+.badge.bonus { color: var(--gain); border-color: var(--gain); background: var(--gain-tint); }
 .info-trigger:hover { color: var(--accent); border-color: var(--accent); }
 .info-popover {
   position: absolute; z-index: 110; background: var(--surface-raised);

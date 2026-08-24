@@ -6,6 +6,12 @@ A local-first personal investment tracker with a light/dark theme system built f
 
 ## What's new in this revision
 
+- **Account owner tags on stock lots**: a tiny 1–2 letter circle (same size as the "i" info button) before each transaction's Date, in both the purchase-lot tooltip and the full Txns modal. Set any 1–2 letters you like (e.g. AR, AS, RN) per transaction, editable inline or via CSV import — useful when the same stock is split across multiple family accounts (e.g. TATACAP held by you, your wife, and your father).
+- **BONUS share entries**: new transaction type alongside BUY/SELL for free bonus allotments. Enter the quantity received, leave price at 0 — this correctly dilutes your average cost per share without touching your actual invested amount, exactly like a real bonus issue. (Fixed a real bug along the way: price=0 was being silently rejected as "missing" by the form validation.)
+- **BSE fallback for Indian stock prices**: some symbols (e.g. NSDL, POLYMED) are BSE-only and weren't being found. Price lookups now try NSE first, then BSE, before falling back to NSE's official API.
+- **Dividend import matches Zerodha Console's export exactly**: column order and headers (Symbol, Ex-date, Qty, Dividend per share, Total dividend) mirror Zerodha's dividend report CSV, so you can download it there and import here with zero editing. Qty and Dividend/Share are optional and shown for reference; only Total Dividend is required for the actual totals.
+- **Tooltip cleanup**: removed the redundant Cost column (Qty×Price was already visible as separate columns), and fixed the popover clipping text — it now sizes itself to fit content.
+
 - **CSV/Excel import** on Stocks [Indian/US] and Mutual Funds pages: upload a .csv or .xlsx of transactions, matched to existing holdings by symbol/scheme code (creates new holdings automatically for unmatched symbols). Click the **i** next to the modal title for the exact column list, or **Download template** for a ready-made starting file.
 - **Dividends page** (new): log dividends manually or via CSV/Excel import, for both Indian and US stocks. Shows total received, this-year total, per-market totals, a sortable full history, and a yearly breakdown table. USD dividends are converted to INR using the *current* FX rate (not the historical rate on the payment date — noted on the page).
 - **Purchase-lot tooltip cleanup**: removed the redundant Cost column (it was just Qty×Price, already visible), keeping Date/Qty/Price/Fees. The popover now sizes itself to fit its content instead of clipping text.
