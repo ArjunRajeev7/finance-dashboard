@@ -28,33 +28,49 @@
       <div class="container">
 
         <div class="card-grid" id="summaryCards"></div>
+        <div class="card-grid" id="accountCards"></div>
 
-        <div class="card" id="addFrame">
+        <div class="card" id="indianAddFrame">
           <div class="card-head">
-            <span class="eyebrow">Log a dividend</span>
-            <button class="ghost" id="importDivBtn" style="font-size:12px;">Import CSV/Excel</button>
+            <span class="eyebrow">Log an Indian stock dividend</span>
+            <button class="ghost" id="importIndianDivBtn" style="font-size:12px;">Import CSV/Excel</button>
           </div>
           <div class="card-body">
             <div class="form-grid">
-              <div class="form-field"><label>Symbol</label><input id="divSymbol" placeholder="e.g. RELIANCE" /></div>
-              <div class="form-field"><label>Ex-Date</label><input id="divDate" type="date" /></div>
-              <div class="form-field"><label>Qty (optional)</label><input id="divQty" type="number" step="any" placeholder="shares held" /></div>
-              <div class="form-field"><label id="divPerShareLabel">Dividend/Share (₹, optional)</label><input id="divPerShare" type="number" step="any" /></div>
-              <div class="form-field"><label id="divAmountLabel">Total Dividend (₹)</label><input id="divAmount" type="number" step="any" /></div>
-              <div class="form-field"><label>Asset type</label>
-                <select id="divAssetType">
-                  <option value="IN_STOCK">Indian Stock</option>
-                  <option value="US_STOCK">US Stock</option>
-                </select>
-              </div>
-              <div class="form-field"><label>Notes (optional)</label><input id="divNotes" placeholder="e.g. interim dividend" /></div>
-              <div class="form-field"><button id="addDivBtn" class="primary">+ Add</button></div>
+              <div class="form-field"><label>Symbol</label><input id="inDivSymbol" placeholder="e.g. RELIANCE" /></div>
+              <div class="form-field"><label>Ex-Date</label><input id="inDivDate" type="date" /></div>
+              <div class="form-field"><label>Qty (optional)</label><input id="inDivQty" type="number" step="any" placeholder="shares held" /></div>
+              <div class="form-field"><label>Dividend/Share (₹, optional)</label><input id="inDivPerShare" type="number" step="any" /></div>
+              <div class="form-field"><label>Total Dividend (₹)</label><input id="inDivAmount" type="number" step="any" /></div>
+              <div class="form-field"><label>Account</label><select id="inDivAccount"></select></div>
+              <div class="form-field"><label>Notes (optional)</label><input id="inDivNotes" placeholder="e.g. interim dividend" /></div>
+              <div class="form-field"><button id="addInDivBtn" class="primary">+ Add</button></div>
             </div>
             <p style="color:var(--text-faint); font-size:11px; margin-top:10px;">Fill Qty and Dividend/Share and the Total will auto-calculate — still editable if it doesn't match your actual credit.</p>
           </div>
         </div>
 
-        <div class="card" id="tableFrame"></div>
+        <div id="indianAccountTables"></div>
+
+        <div class="card" id="usAddFrame">
+          <div class="card-head">
+            <span class="eyebrow">Log a US stock dividend</span>
+            <button class="ghost" id="importUsDivBtn" style="font-size:12px;">Import CSV/Excel</button>
+          </div>
+          <div class="card-body">
+            <div class="form-grid">
+              <div class="form-field"><label>Symbol</label><input id="usDivSymbol" placeholder="e.g. AAPL" /></div>
+              <div class="form-field"><label>Ex-Date</label><input id="usDivDate" type="date" /></div>
+              <div class="form-field"><label>Qty (optional)</label><input id="usDivQty" type="number" step="any" placeholder="shares held" /></div>
+              <div class="form-field"><label>Dividend/Share ($, optional)</label><input id="usDivPerShare" type="number" step="any" /></div>
+              <div class="form-field"><label>Total Dividend ($)</label><input id="usDivAmount" type="number" step="any" /></div>
+              <div class="form-field"><label>Notes (optional)</label><input id="usDivNotes" placeholder="e.g. quarterly dividend" /></div>
+              <div class="form-field"><button id="addUsDivBtn" class="primary">+ Add</button></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" id="usTableFrame"></div>
 
         <div class="card">
           <div class="card-head"><span class="eyebrow">Yearly breakdown</span></div>

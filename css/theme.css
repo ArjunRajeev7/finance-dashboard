@@ -323,6 +323,15 @@ th.sortable.active .sort-arrow { opacity: 1; color: var(--accent); }
 .owner-chip.empty { border-style: dashed; color: var(--text-faint); background: transparent; border-color: var(--border-strong); }
 .owner-chip-input { width: 44px !important; text-align: center; text-transform: uppercase; padding: 6px 4px !important; }
 .badge.bonus { color: var(--gain); border-color: var(--gain); background: var(--gain-tint); }
+
+/* editable label input (dividend account names) — looks like text until focused */
+.inline-edit-label {
+  background: transparent; border: 1px solid transparent; border-radius: var(--radius-sm);
+  padding: 2px 4px; margin: -2px -4px 4px; font-size: 12px; font-weight: 500;
+  color: var(--text-muted); width: 100%; cursor: text;
+}
+.inline-edit-label:hover { border-color: var(--border); }
+.inline-edit-label:focus { border-color: var(--accent); background: var(--surface); outline: none; }
 .info-trigger:hover { color: var(--accent); border-color: var(--accent); }
 .info-popover {
   position: absolute; z-index: 110; background: var(--surface-raised);

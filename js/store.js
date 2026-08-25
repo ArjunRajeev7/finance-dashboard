@@ -41,6 +41,11 @@ function defaultData() {
     version: 1,
     holdings: { IN_STOCK: [], IN_MF: [], US_STOCK: [], FD: [], EPF: [] },
     dividends: [],
+    dividendAccounts: [
+      { id: 1, name: 'Account 1' },
+      { id: 2, name: 'Account 2' },
+      { id: 3, name: 'Account 3' }
+    ],
     activityLog: [],
     settings: {
       baseCurrency: 'INR',
@@ -60,6 +65,7 @@ function normalize(raw) {
   ASSET_TYPES.forEach(t => { if (!Array.isArray(d.holdings[t])) d.holdings[t] = []; });
   if (!Array.isArray(d.activityLog)) d.activityLog = [];
   if (!Array.isArray(d.dividends)) d.dividends = [];
+  if (!Array.isArray(d.dividendAccounts) || d.dividendAccounts.length !== 3) d.dividendAccounts = def.dividendAccounts;
   d.settings = Object.assign({}, def.settings, (raw && raw.settings) || {});
   delete d._readme;
   return d;
@@ -248,6 +254,21 @@ const Store = {
   },
   getDividends() {
     return this.load().dividends;
+  },
+
+  // ---------- Dividend accounts (user-nameable, 3 fixed slots) ----------
+  getDividendAccounts() {
+    return this.load().dividendAccounts;
+  },
+  renameDividendAccount(id, name) {
+    const d = this.load();
+    const acc = d.dividendAccounts.find(a => a.id === id);
+    if (acc) {
+      const oldName = acc.name;
+      acc.name = name.trim() || acc.name;
+      this.log('info', `Renamed dividend account "${oldName}" → "${acc.name}"`);
+    }
+    this.save();
   },
 
   // ---------- Settings ----------

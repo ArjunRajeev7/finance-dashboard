@@ -28,6 +28,20 @@ Importer.parseFile = async function (file) {
   return XLSX.utils.sheet_to_json(sheet, { defval: '' });
 };
 
+// Returns [{ sheetName, rows }] for every sheet in the workbook, in order.
+// A plain .csv naturally comes back as a single-entry array (CSV has no
+// concept of multiple sheets) — callers that expect multiple sheets should
+// treat missing/absent sheets as "no data" rather than an error.
+Importer.parseWorkbookAllSheets = async function (file) {
+  const XLSX = await loadXlsxLib();
+  const buf = await file.arrayBuffer();
+  const wb = XLSX.read(buf, { type: 'array', cellDates: true });
+  return wb.SheetNames.map(name => ({
+    sheetName: name,
+    rows: XLSX.utils.sheet_to_json(wb.Sheets[name], { defval: '' })
+  }));
+};
+
 // Case/whitespace-insensitive lookup of a value from a parsed row object,
 // since uploaded headers won't always match our exact casing.
 Importer.getField = function (row, ...names) {
@@ -74,7 +88,9 @@ Importer.openModal = function (opts) {
   const overlay = openModal(
     `${opts.title} <button class="info-trigger" data-info-key="${helpKey}" title="What's needed for import">i</button>`,
     `
-    <p style="font-size:12.5px; color:var(--text-muted); margin-top:0;">Upload a .csv or .xlsx file. The first row must be column headers — click the <b>i</b> above for the exact list.</p>
+    <p style="font-size:12.5px; color:var(--text-muted); margin-top:0;">${opts.multiSheet
+      ? 'Upload an .xlsx file with up to 3 sheet tabs — one per account, in order. A plain .csv only has one sheet, so it will only fill Account 1. Missing or empty sheets are fine, no error.'
+      : 'Upload a .csv or .xlsx file. The first row must be column headers — click the <b>i</b> above for the exact list.'}</p>
     <div class="form-field" style="margin-bottom:12px;">
       <input type="file" id="importFileInput" accept=".csv,.xlsx,.xls" />
     </div>
@@ -95,9 +111,15 @@ Importer.openModal = function (opts) {
         const statusEl = overlay.querySelector('#importStatus');
         statusEl.innerHTML = '<span style="color:var(--text-muted);">Parsing file…</span>';
         try {
-          const rows = await Importer.parseFile(file);
-          if (!rows.length) throw new Error('No rows found in the file');
-          const result = await opts.onImport(rows);
+          let result;
+          if (opts.multiSheet) {
+            const sheets = await Importer.parseWorkbookAllSheets(file);
+            result = await opts.onImport(sheets);
+          } else {
+            const rows = await Importer.parseFile(file);
+            if (!rows.length) throw new Error('No rows found in the file');
+            result = await opts.onImport(rows);
+          }
           let html = `<span style="color:var(--gain);">Imported ${result.success} row(s).</span>`;
           if (result.errors.length) {
             html += `<br><span style="color:var(--loss);">${result.errors.length} row(s) skipped:</span>
@@ -112,15 +134,31 @@ Importer.openModal = function (opts) {
         }
       };
 
-      overlay.querySelector('#downloadTemplateBtn').onclick = () => {
-        const header = opts.columns.map(c => c.label).join(',');
-        const sample = (opts.sampleRow || []).join(',');
-        const csv = header + '\n' + sample + '\n';
-        const blob = new Blob([csv], { type: 'text/csv' });
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = opts.templateFilename || 'import-template.csv';
-        a.click();
+      overlay.querySelector('#downloadTemplateBtn').onclick = async () => {
+        if (opts.multiSheet) {
+          try {
+            const XLSX = await loadXlsxLib();
+            const wb = XLSX.utils.book_new();
+            const header = opts.columns.map(c => c.label);
+            (opts.sheetNames || ['Account 1', 'Account 2', 'Account 3']).forEach((sheetName, i) => {
+              const data = i === 0 && opts.sampleRow ? [header, opts.sampleRow] : [header];
+              const ws = XLSX.utils.aoa_to_sheet(data);
+              XLSX.utils.book_append_sheet(wb, ws, sheetName);
+            });
+            XLSX.writeFile(wb, opts.templateFilename || 'import-template.xlsx');
+          } catch (err) {
+            overlay.querySelector('#importStatus').innerHTML = `<span style="color:var(--loss);">${err.message}</span>`;
+          }
+        } else {
+          const header = opts.columns.map(c => c.label).join(',');
+          const sample = (opts.sampleRow || []).join(',');
+          const csv = header + '\n' + sample + '\n';
+          const blob = new Blob([csv], { type: 'text/csv' });
+          const a = document.createElement('a');
+          a.href = URL.createObjectURL(blob);
+          a.download = opts.templateFilename || 'import-template.csv';
+          a.click();
+        }
       };
     }
   );

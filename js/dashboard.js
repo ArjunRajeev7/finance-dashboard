@@ -39,6 +39,9 @@ function renderDiversityCards(snap) {
   }, 0) * 100;
   const diversificationLabel = hhi < 25 ? 'well spread' : hhi < 45 ? 'moderately concentrated' : 'concentrated';
 
+  const dividends = Store.getDividends();
+  const totalDividendsInr = dividends.reduce((s, d) => s + (d.currency === 'USD' ? d.amount * snap.usdInr : d.amount), 0);
+
   el.innerHTML = `
     <div class="stat-card">
       <div class="label">Instruments Held</div>
@@ -59,6 +62,11 @@ function renderDiversityCards(snap) {
       <div class="label">USD/INR Used</div>
       <div class="value">${Fmt.num(snap.usdInr, 2)}</div>
       <div class="sub">applied to US Stocks valuation</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Total Dividends Earned</div>
+      <div class="value up">${Fmt.money(totalDividendsInr)}</div>
+      <div class="sub"><a href="dividends.html">Indian + US, see breakdown →</a></div>
     </div>
   `;
 }

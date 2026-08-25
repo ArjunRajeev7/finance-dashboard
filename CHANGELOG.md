@@ -11,8 +11,12 @@ All notable changes to Finance Tracker are logged here — newest at the top.
 
 ---
 
-## 2026-08-24 — Changelog established
-- **Added**: this file. Going forward, every request that changes the site gets an entry here — what was added, changed, fixed, or removed, in plain language.
+## 2026-08-25 — Multi-account dividend tracking
+- **Added**: Indian stock dividends can now be split across 3 user-nameable "accounts" (e.g. rename to your own names) — each with its own separate history table, its own running total card, and its own row in the manual-entry form's account dropdown. Renaming is done inline right on the account's summary card.
+- **Changed**: US stock dividends are now fully separate from Indian ones — their own "Log a dividend" form, own "Import CSV/Excel" button, own history table — never merged into the same rows/columns as Indian entries. US amounts shown with INR as the primary figure and USD as smaller text underneath, both in the top summary card and per-row in the table.
+- **Added**: multi-sheet Excel import for Indian dividends — upload one .xlsx with up to 3 sheet tabs (one per account, in order); a missing or empty sheet is skipped with no error, so accounts with nothing to import are simply left out.
+- **Added**: new "Total Dividends Earned" card on the main Dashboard — combines Indian (all accounts) + US (converted to INR), links through to the Dividends page.
+- **Changed**: top summary cards on the Dividends page now correctly total across all 3 Indian accounts plus US, rather than assuming a single Indian pool.
 
 ---
 
