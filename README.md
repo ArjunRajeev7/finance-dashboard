@@ -1,6 +1,8 @@
 # Finance Tracker
 
-A local-first personal investment tracker with a light/dark theme system built for a data-dense fintech feel — not a generic dashboard template. Six pages: Indian Stocks (NSE), Mutual Funds, US Stocks (incl. ETFs), Fixed Deposits, EPF, plus a dashboard for the full picture. Live prices for NSE stocks, mutual fund NAVs, and US stocks/ETFs.
+A local-first personal investment tracker with a light/dark theme system built for a data-dense fintech feel — not a generic dashboard template. Six pages: Indian Stocks (NSE), Mutual Funds, US Stocks (incl. ETFs), Fixed Deposits, EPF, plus a dashboard for the full picture, and a Dividends page for tracking payouts over time. Live prices for NSE stocks, mutual fund NAVs, and US stocks/ETFs.
+
+See **[CHANGELOG.md](CHANGELOG.md)** for a full history of what's changed, added, or fixed over time.
 
 **Design**: Inter for UI text, IBM Plex Mono (tabular numerals) for money figures and ticker symbols. Every live-fetched price shows a small freshness pulse — green (refreshed <15 min ago), amber (stale, refresh recommended), or gray (manually entered) — so you can see at a glance which numbers are current. Light/dark toggle in the header, remembers your choice, defaults to your OS setting on first visit.
 
