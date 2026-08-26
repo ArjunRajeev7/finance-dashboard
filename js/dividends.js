@@ -12,30 +12,53 @@
 
 const _indianDivSortStates = { 1: { col: null, dir: 'desc' }, 2: { col: null, dir: 'desc' }, 3: { col: null, dir: 'desc' } };
 const _usDivSortState = { col: null, dir: 'desc' };
-
 function divRowAccessor(row, key) {
   switch (key) {
     case 'date': return row.date;
     case 'symbol': return row.symbol;
     case 'qty': return row.qty;
     case 'perShare': return row.perShare;
+    case 'grossAmount': return row.grossAmount;
+    case 'taxWithheld': return row.taxWithheld;
     case 'amountNative': return row.amount;
     case 'notes': return row.notes || '';
     default: return null;
   }
 }
 
-function divRowHtml(r, isUS, usdInr) {
-  const sym = isUS ? '$' : '₹';
+function divRowHtml(r) {
+  // Indian row: Symbol, Ex-Date, Qty, Dividend/Share, Total Dividend, Notes, actions
   return `
     <tr>
       <td>${r.symbol}</td>
       <td class="num">${Fmt.date(r.date)}</td>
       <td class="num">${r.qty != null ? Fmt.numExact(r.qty) : '—'}</td>
-      <td class="num">${r.perShare != null ? Fmt.moneyPrecise(r.perShare, sym) : '—'}</td>
-      <td class="num">${Fmt.moneyPrecise(r.amount, sym)}</td>
-      ${isUS ? `<td class="num">${Fmt.money(r.amount * usdInr)}</td>` : ''}
+      <td class="num">${r.perShare != null ? Fmt.moneyPrecise(r.perShare, '₹') : '—'}</td>
+      <td class="num">${Fmt.moneyPrecise(r.amount, '₹')}</td>
       <td style="text-align:left; white-space:normal; max-width:180px; color:var(--text-muted);">${r.notes || '—'}</td>
+      <td><div class="row-actions">
+        <button data-edit-id="${r.id}" class="ghost">Edit</button>
+        <button data-del-id="${r.id}" class="danger">Del</button>
+      </div></td>
+    </tr>
+  `;
+}
+
+function usDivRowHtml(r, usdInr) {
+  // US row: Symbol, Date, Qty, Dividend/Share, Dividend Received, Tax Withheld, Total Dividend, Amount (INR), Notes, actions
+  const gross = r.grossAmount != null ? r.grossAmount : r.amount;
+  const tax = r.taxWithheld || 0;
+  return `
+    <tr>
+      <td>${r.symbol}</td>
+      <td class="num">${Fmt.date(r.date)}</td>
+      <td class="num">${r.qty != null ? Fmt.numExact(r.qty) : '—'}</td>
+      <td class="num">${r.perShare != null ? Fmt.moneyPrecise(r.perShare, '$') : '—'}</td>
+      <td class="num">${Fmt.moneyPrecise(gross, '$')}</td>
+      <td class="num">${tax ? Fmt.moneyPrecise(tax, '$') : '—'}</td>
+      <td class="num">${Fmt.moneyPrecise(r.amount, '$')}</td>
+      <td class="num">${Fmt.money(r.amount * usdInr)}</td>
+      <td style="text-align:left; white-space:normal; max-width:160px; color:var(--text-muted);">${r.notes || '—'}</td>
       <td><div class="row-actions">
         <button data-edit-id="${r.id}" class="ghost">Edit</button>
         <button data-del-id="${r.id}" class="danger">Del</button>
@@ -68,6 +91,7 @@ function renderDividendsPage() {
 
   const indianTotal = indian.reduce((s, d) => s + d.amount, 0);
   const usTotalUSD = us.reduce((s, d) => s + d.amount, 0);
+  const usTotalTaxUSD = us.reduce((s, d) => s + (d.taxWithheld || 0), 0);
   const usTotalINR = usTotalUSD * usdInr;
   const grandTotal = indianTotal + usTotalINR;
   const thisYear = new Date().getFullYear();
@@ -78,7 +102,8 @@ function renderDividendsPage() {
     <div class="stat-card"><div class="label">Total Dividends Received</div><div class="value up">${Fmt.money(grandTotal)}</div></div>
     <div class="stat-card"><div class="label">This Year (${thisYear})</div><div class="value up">${Fmt.money(thisYearIndian + thisYearUsInr)}</div></div>
     <div class="stat-card"><div class="label">From Indian Stocks</div><div class="value">${Fmt.money(indianTotal)}</div><div class="sub">across all accounts</div></div>
-    <div class="stat-card"><div class="label">From US Stocks</div><div class="value dual-value">${Fmt.money(usTotalINR)}<span class="secondary">${Fmt.moneyPrecise(usTotalUSD, '$')}</span></div></div>
+    <div class="stat-card"><div class="label">From US Stocks</div><div class="value dual-value">${Fmt.money(usTotalINR)}<span class="secondary">${Fmt.moneyPrecise(usTotalUSD, '$')}</span></div>
+      ${usTotalTaxUSD ? `<div class="sub">Tax withheld: ${Fmt.moneyPrecise(usTotalTaxUSD, '$')} total</div>` : ''}</div>
   `;
 
   // ---- per-account cards (user-nameable) ----
@@ -126,7 +151,7 @@ function renderDividendsPage() {
             <th data-sort="perShare">Dividend/Share</th><th data-sort="amountNative">Total Dividend</th>
             <th data-sort="notes">Notes</th><th></th>
           </tr></thead>
-          <tbody>${rows.length ? rows.map(r => divRowHtml(r, false)).join('') : `<tr><td colspan="7" class="empty-state">No dividends logged yet for ${acc.name}</td></tr>`}</tbody>
+          <tbody>${rows.length ? rows.map(r => divRowHtml(r)).join('') : `<tr><td colspan="7" class="empty-state">No dividends logged yet for ${acc.name}</td></tr>`}</tbody>
         </table>
       </div>
     `;
@@ -143,11 +168,12 @@ function renderDividendsPage() {
     <div class="table-scroll">
       <table>
         <thead><tr>
-          <th data-sort="symbol">Symbol</th><th data-sort="date">Ex-Date</th><th data-sort="qty">Qty</th>
-          <th data-sort="perShare">Dividend/Share</th><th data-sort="amountNative">Total Dividend</th>
+          <th data-sort="symbol">Symbol</th><th data-sort="date">Date</th><th data-sort="qty">Qty</th>
+          <th data-sort="perShare">Dividend/Share</th><th data-sort="grossAmount">Dividend Received</th>
+          <th data-sort="taxWithheld">Tax Withheld</th><th data-sort="amountNative">Total Dividend</th>
           <th>Amount (INR)</th><th data-sort="notes">Notes</th><th></th>
         </tr></thead>
-        <tbody>${usRows.length ? usRows.map(r => divRowHtml(r, true, usdInr)).join('') : `<tr><td colspan="8" class="empty-state">No US dividends logged yet</td></tr>`}</tbody>
+        <tbody>${usRows.length ? usRows.map(r => usDivRowHtml(r, usdInr)).join('') : `<tr><td colspan="10" class="empty-state">No US dividends logged yet</td></tr>`}</tbody>
       </table>
     </div>
   `;
@@ -196,9 +222,13 @@ function openEditDividendModal(id) {
   openModal(`Edit dividend — ${div.symbol}`, `
     <div class="form-grid">
       <div class="form-field"><label>Symbol</label><input id="editDivSymbol" value="${div.symbol}" /></div>
-      <div class="form-field"><label>Ex-Date</label><input id="editDivDate" type="date" value="${div.date}" /></div>
+      <div class="form-field"><label>${isUS ? 'Date' : 'Ex-Date'}</label><input id="editDivDate" type="date" value="${div.date}" /></div>
       <div class="form-field"><label>Qty (optional)</label><input id="editDivQty" type="number" step="any" value="${div.qty != null ? div.qty : ''}" /></div>
       <div class="form-field"><label>Dividend/Share (${sym}, optional)</label><input id="editDivPerShare" type="number" step="any" value="${div.perShare != null ? div.perShare : ''}" /></div>
+      ${isUS ? `
+      <div class="form-field"><label>Dividend Received ($)</label><input id="editDivReceived" type="number" step="any" value="${div.grossAmount != null ? div.grossAmount : div.amount}" /></div>
+      <div class="form-field"><label>Tax Withheld ($)</label><input id="editDivTax" type="number" step="any" value="${div.taxWithheld || 0}" /></div>
+      ` : ''}
       <div class="form-field"><label>Total Dividend (${sym})</label><input id="editDivAmount" type="number" step="any" value="${div.amount}" /></div>
       ${!isUS ? `<div class="form-field"><label>Account</label><select id="editDivAccount">${accounts.map(a => `<option value="${a.id}" ${(div.account || 1) === a.id ? 'selected' : ''}>${a.name}</option>`).join('')}</select></div>` : ''}
       <div class="form-field"><label>Notes</label><input id="editDivNotes" value="${div.notes || ''}" /></div>
@@ -218,7 +248,13 @@ function openEditDividendModal(id) {
         qty: qtyRaw !== '' ? parseFloat(qtyRaw) : null,
         perShare: perShareRaw !== '' ? parseFloat(perShareRaw) : null
       };
-      if (!isUS) patch.account = parseInt(overlay.querySelector('#editDivAccount').value, 10);
+      if (isUS) {
+        const receivedRaw = overlay.querySelector('#editDivReceived').value;
+        patch.grossAmount = receivedRaw !== '' ? parseFloat(receivedRaw) : amount;
+        patch.taxWithheld = parseFloat(overlay.querySelector('#editDivTax').value) || 0;
+      } else {
+        patch.account = parseInt(overlay.querySelector('#editDivAccount').value, 10);
+      }
       Store.updateDividend(id, patch);
       toast('Dividend updated', 'ok');
       closeModal();
@@ -281,10 +317,11 @@ function openUsDivImportModal() {
       { label: 'Ex-date', required: true, hint: 'YYYY-MM-DD, or an actual Excel date cell' },
       { label: 'Qty', required: false, hint: 'Shares held on the ex-date' },
       { label: 'Dividend per share', required: false, hint: 'In USD' },
-      { label: 'Total dividend', required: true, hint: 'The actual amount received, in USD' },
+      { label: 'Dividend Received', required: true, hint: 'Gross amount before tax, in USD' },
+      { label: 'Tax Withheld', required: false, hint: 'US withholding tax in USD, default 0 (commonly 25% for NRIs under the US–India tax treaty)' },
       { label: 'Notes', required: false }
     ],
-    sampleRow: ['AAPL', '2024-08-15', '10', '0.25', '2.50', ''],
+    sampleRow: ['AAPL', '2024-08-15', '10', '0.25', '2.50', '0.63', ''],
     onImport: async (rows) => {
       const errors = [];
       let success = 0;
@@ -294,14 +331,34 @@ function openUsDivImportModal() {
         if (!symbol) { errors.push(`Row ${rowNum}: missing Symbol`); return; }
         const date = Importer.normalizeDate(Importer.getField(row, 'Ex-date', 'Ex Date', 'ExDate', 'Date'));
         if (!date) { errors.push(`Row ${rowNum} (${symbol}): unrecognized Ex-date`); return; }
-        const amount = parseFloat(Importer.getField(row, 'Total dividend', 'TotalDividend', 'Amount'));
-        if (!amount || amount <= 0) { errors.push(`Row ${rowNum} (${symbol}): invalid Total dividend`); return; }
+
+        // Prefer the new Dividend Received / Tax Withheld pair; fall back to
+        // a legacy "Total dividend" column (older exports/templates) if that's
+        // all that's present, treating it as fully net with no tax breakdown.
+        const receivedRaw = Importer.getField(row, 'Dividend Received', 'DividendReceived', 'Gross Amount');
+        const legacyTotalRaw = Importer.getField(row, 'Total dividend', 'TotalDividend', 'Amount');
+        const taxWithheld = parseFloat(Importer.getField(row, 'Tax Withheld', 'TaxWithheld', 'Tax')) || 0;
+
+        let grossAmount, amount;
+        if (receivedRaw !== undefined) {
+          grossAmount = parseFloat(receivedRaw);
+          if (isNaN(grossAmount) || grossAmount <= 0) { errors.push(`Row ${rowNum} (${symbol}): invalid Dividend Received`); return; }
+          amount = grossAmount - taxWithheld;
+        } else if (legacyTotalRaw !== undefined) {
+          amount = parseFloat(legacyTotalRaw);
+          if (isNaN(amount) || amount <= 0) { errors.push(`Row ${rowNum} (${symbol}): invalid Total dividend`); return; }
+          grossAmount = amount + taxWithheld;
+        } else {
+          errors.push(`Row ${rowNum} (${symbol}): missing Dividend Received`);
+          return;
+        }
+
         const qtyRaw = Importer.getField(row, 'Qty', 'Quantity');
         const qty = qtyRaw !== undefined ? parseFloat(qtyRaw) : null;
         const perShareRaw = Importer.getField(row, 'Dividend per share', 'DividendPerShare', 'Dividend Per Share');
         const perShare = perShareRaw !== undefined ? parseFloat(perShareRaw) : null;
         const notes = (Importer.getField(row, 'Notes') || '').toString().trim();
-        Store.addDividend({ assetType: 'US_STOCK', symbol, date, qty, perShare, amount, currency: 'USD', notes });
+        Store.addDividend({ assetType: 'US_STOCK', symbol, date, qty, perShare, grossAmount, taxWithheld, amount, currency: 'USD', notes });
         success++;
       });
       renderDividendsPage();
@@ -348,26 +405,38 @@ function openUsDivImportModal() {
   // ---- US add form ----
   const usQty = document.getElementById('usDivQty');
   const usPerShare = document.getElementById('usDivPerShare');
+  const usReceived = document.getElementById('usDivReceived');
+  const usTax = document.getElementById('usDivTax');
   const usAmount = document.getElementById('usDivAmount');
-  function autoFillUs() {
+  function autoFillUsReceived() {
     const q = parseFloat(usQty.value), p = parseFloat(usPerShare.value);
-    if (q && p) usAmount.value = (q * p).toFixed(2);
+    if (q && p) usReceived.value = (q * p).toFixed(2);
+    autoFillUsTotal();
   }
-  usQty.oninput = autoFillUs;
-  usPerShare.oninput = autoFillUs;
+  function autoFillUsTotal() {
+    const received = parseFloat(usReceived.value);
+    const tax = parseFloat(usTax.value) || 0;
+    if (!isNaN(received)) usAmount.value = (received - tax).toFixed(2);
+  }
+  usQty.oninput = autoFillUsReceived;
+  usPerShare.oninput = autoFillUsReceived;
+  usReceived.oninput = autoFillUsTotal;
+  usTax.oninput = autoFillUsTotal;
 
   document.getElementById('addUsDivBtn').onclick = () => {
     const symbol = document.getElementById('usDivSymbol').value.trim().toUpperCase();
     const date = document.getElementById('usDivDate').value;
     const qty = usQty.value !== '' ? parseFloat(usQty.value) : null;
     const perShare = usPerShare.value !== '' ? parseFloat(usPerShare.value) : null;
+    const grossAmount = usReceived.value !== '' ? parseFloat(usReceived.value) : null;
+    const taxWithheld = parseFloat(usTax.value) || 0;
     const amount = parseFloat(usAmount.value);
     const notes = document.getElementById('usDivNotes').value.trim();
     if (!symbol || !date || !amount) return toast('Fill symbol, date and total dividend', 'err');
-    Store.addDividend({ assetType: 'US_STOCK', symbol, date, qty, perShare, amount, currency: 'USD', notes });
+    Store.addDividend({ assetType: 'US_STOCK', symbol, date, qty, perShare, grossAmount: grossAmount != null ? grossAmount : amount, taxWithheld, amount, currency: 'USD', notes });
     toast('Dividend logged', 'ok');
     document.getElementById('usDivSymbol').value = '';
-    usQty.value = ''; usPerShare.value = ''; usAmount.value = '';
+    usQty.value = ''; usPerShare.value = ''; usReceived.value = ''; usTax.value = '0'; usAmount.value = '';
     document.getElementById('usDivNotes').value = '';
     renderDividendsPage();
   };

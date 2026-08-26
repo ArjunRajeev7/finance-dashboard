@@ -11,6 +11,13 @@ All notable changes to Finance Tracker are logged here — newest at the top.
 
 ---
 
+## 2026-08-26 — US dividend tax withholding
+- **Added**: `Tax Withheld` column to the US dividend history table. Column order is now Symbol, Date, Qty, Dividend/Share, Dividend Received, Tax Withheld, Total Dividend (Amount in INR and Notes follow).
+- **Changed**: US dividend entries now track gross `Dividend Received` and `Tax Withheld` separately — Total Dividend auto-calculates as Received minus Tax (still editable). Applies to manual entry, CSV import (new `Dividend Received` / `Tax Withheld` columns, with the old single `Total dividend` column still accepted for backward compatibility), and the edit modal.
+- **Added**: a small line in the "From US Stocks" summary card at the top of the Dividends page showing total tax withheld across all US dividends.
+
+---
+
 ## 2026-08-25 — Multi-account dividend tracking
 - **Added**: Indian stock dividends can now be split across 3 user-nameable "accounts" (e.g. rename to your own names) — each with its own separate history table, its own running total card, and its own row in the manual-entry form's account dropdown. Renaming is done inline right on the account's summary card.
 - **Changed**: US stock dividends are now fully separate from Indian ones — their own "Log a dividend" form, own "Import CSV/Excel" button, own history table — never merged into the same rows/columns as Indian entries. US amounts shown with INR as the primary figure and USD as smaller text underneath, both in the top summary card and per-row in the table.
@@ -21,7 +28,7 @@ All notable changes to Finance Tracker are logged here — newest at the top.
 ---
 
 ## Batch 7 — Account tags, BSE fallback, Zerodha import, bonus shares
-- **Added**: 1–2 letter "owner" account tag on individual transactions — a small circle shown before the Date column in both the transactions modal and the purchase-lot tooltip. Editable per-transaction in the UI, and importable via a new optional `Owner` column in the CSV/Excel importer.
+- **Added**: 1–2 letter "owner" account tag on individual transactions (e.g. `AR`, `AS`, `RN`) — a small circle shown before the Date column in both the transactions modal and the purchase-lot tooltip. Editable per-transaction in the UI, and importable via a new optional `Owner` column in the CSV/Excel importer.
 - **Added**: `BONUS` transaction type for bonus share issues — enter quantity received, price stays at 0. Correctly dilutes average cost per share without changing invested amount.
 - **Fixed**: a real bug where entering a purchase price of exactly `0` was rejected by form validation as if the field were empty — this was blocking bonus-share entry entirely.
 - **Changed**: Indian stock price lookup now tries NSE first, then falls back to BSE (for NSE-only-listed misses like NSDL, POLYMED), before trying NSE's official API as a last resort.
@@ -40,7 +47,7 @@ All notable changes to Finance Tracker are logged here — newest at the top.
 - **Fixed**: the "i" info button was rendering as an oval, not a circle (a CSS padding conflict) — now a clean, smaller perfect circle.
 - **Fixed**: purchase-lot tooltip was rounding small decimal costs down to a misleading "0" — now shows full precision with no rounding, specifically for US stock quantities/prices/costs.
 - **Changed**: Avg Cost now excludes brokerage/fees (shown separately, itemized per lot, with a running total) instead of blending fees into the displayed price. Applies to both Indian and US stocks.
-- **Changed**: reduced Indian-stock tag presets down to just "IPO" plus a free-text custom tag.
+- **Changed**: reduced Indian-stock tag presets down to just "IPO" plus a free-text custom tag (removed "Father's A/C" / "Sister's A/C" presets, which took up too much space).
 - **Added**: sortable Tags column on the Indian Stocks table.
 - **Confirmed** (no code change needed): Alpha Vantage API key and CORS proxy URL were already being saved into `data.json` and correctly restored on import — verified this works end-to-end.
 

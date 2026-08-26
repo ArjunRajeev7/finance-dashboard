@@ -63,10 +63,13 @@
               <div class="form-field"><label>Ex-Date</label><input id="usDivDate" type="date" /></div>
               <div class="form-field"><label>Qty (optional)</label><input id="usDivQty" type="number" step="any" placeholder="shares held" /></div>
               <div class="form-field"><label>Dividend/Share ($, optional)</label><input id="usDivPerShare" type="number" step="any" /></div>
+              <div class="form-field"><label>Dividend Received ($)</label><input id="usDivReceived" type="number" step="any" /></div>
+              <div class="form-field"><label>Tax Withheld ($)</label><input id="usDivTax" type="number" step="any" value="0" /></div>
               <div class="form-field"><label>Total Dividend ($)</label><input id="usDivAmount" type="number" step="any" /></div>
               <div class="form-field"><label>Notes (optional)</label><input id="usDivNotes" placeholder="e.g. quarterly dividend" /></div>
               <div class="form-field"><button id="addUsDivBtn" class="primary">+ Add</button></div>
             </div>
+            <p style="color:var(--text-faint); font-size:11px; margin-top:10px;">Dividend Received auto-fills from Qty × Dividend/Share; Total Dividend auto-fills as Received minus Tax Withheld (US brokers typically withhold 25% for NRIs under the US–India tax treaty). Both stay editable if your actual figures differ.</p>
           </div>
         </div>
 
