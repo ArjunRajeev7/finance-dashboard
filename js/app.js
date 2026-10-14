@@ -2,6 +2,11 @@
    app.js — shared UI chrome
    ============================================================ */
 
+// Single source of truth for the version shown in every page's footer and
+// referenced in README/CHANGELOG. Bump this alongside a new CHANGELOG entry.
+const APP_VERSION = 'v1.9.0';
+window.APP_VERSION = APP_VERSION;
+
 const Fmt = {
   money(n, currency) {
     if (n == null || isNaN(n)) return '—';
@@ -103,10 +108,11 @@ function renderShell(activeHref, pageTitle) {
   }
 
   if (bottomNav) {
-    const mobileItems = NAV_ITEMS.slice(0, 5);
-    bottomNav.innerHTML = mobileItems.map(t =>
-      `<a href="${t.href}" class="${t.href === activeHref ? 'active' : ''}">${Icons[t.icon]}<span>${t.label.replace('Indian ', '').replace('US ', 'US ')}</span></a>`
-    ).join('');
+    bottomNav.innerHTML = NAV_ITEMS.map(t =>
+      `<a href="${t.href}" class="${t.href === activeHref ? 'active' : ''}">${Icons[t.icon]}<span>${t.label.replace('Indian ', '')}</span></a>`
+    ).join('') + `<button type="button" class="bottom-nav-item" id="bottomNavSettings">${Icons.settings}<span>Settings</span></button>`;
+    const bnSettings = document.getElementById('bottomNavSettings');
+    if (bnSettings) bnSettings.onclick = () => openSettingsModal();
   }
 
   if (header) {
@@ -146,8 +152,21 @@ function renderShell(activeHref, pageTitle) {
 
   updateFxChip();
   updateSourceChip();
+  stampFooterVersion();
 }
 window.renderShell = renderShell;
+
+// Every page has a `.footer-note` div with its own text — this appends the
+// current version once, so every page shows it without duplicating the
+// version string across seven separate HTML files.
+function stampFooterVersion() {
+  document.querySelectorAll('.footer-note').forEach(footer => {
+    if (footer.dataset.versioned) return;
+    footer.textContent = footer.textContent.replace(/\s*$/, '') + ` · ${APP_VERSION}`;
+    footer.dataset.versioned = 'true';
+  });
+}
+window.stampFooterVersion = stampFooterVersion;
 
 function closeSidebarMobile() {
   const sidebar = document.getElementById('sidebar');
@@ -433,3 +452,33 @@ if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js').catch((e) => console.warn('SW registration failed', e));
   });
 }
+
+
+// ---------------- Collapsible sections ----------------
+// Markup: a `.card-head.collapsible` (with an empty `.collapse-chevron` span
+// inside) followed by a `.collapsible-body`. Clicking the head — except on a
+// nested button/select/input/link — toggles it. The open/closed state is
+// remembered per storageKey across visits and across re-renders.
+function collapsibleCardHead(titleHtml, extraHtml) {
+  return `<div class="card-head collapsible"><span class="eyebrow"><span class="collapse-chevron"></span>${titleHtml}</span>${extraHtml || ''}</div>`;
+}
+window.collapsibleCardHead = collapsibleCardHead;
+
+function wireCollapsible(cardEl, storageKey, defaultExpanded) {
+  const head = cardEl.querySelector('.card-head.collapsible');
+  const body = cardEl.querySelector('.collapsible-body');
+  if (!head || !body) return;
+  const chev = head.querySelector('.collapse-chevron');
+  if (chev && !chev.innerHTML.trim()) chev.innerHTML = Icons.chevronRight;
+  const saved = localStorage.getItem('ft_collapse_' + storageKey);
+  const expanded = saved != null ? saved === '1' : !!defaultExpanded;
+  head.classList.toggle('expanded', expanded);
+  body.classList.toggle('expanded', expanded);
+  head.onclick = (e) => {
+    if (e.target.closest('button, select, input, a')) return;
+    const isOpen = body.classList.toggle('expanded');
+    head.classList.toggle('expanded', isOpen);
+    localStorage.setItem('ft_collapse_' + storageKey, isOpen ? '1' : '0');
+  };
+}
+window.wireCollapsible = wireCollapsible;

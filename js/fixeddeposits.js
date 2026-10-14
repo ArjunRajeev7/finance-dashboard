@@ -143,6 +143,7 @@ function openFdEditModal(id) {
   document.getElementById('fdStart').value = Finance.todayStr();
 
   const addFrame = document.getElementById('addFrame');
+  wireCollapsible(addFrame, 'add-FD', false);
   addFrame.querySelector('#addFdBtn').onclick = () => {
     const bank = addFrame.querySelector('#fdBank').value.trim();
     const principal = parseFloat(addFrame.querySelector('#fdPrincipal').value);

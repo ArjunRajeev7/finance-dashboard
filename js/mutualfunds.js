@@ -45,8 +45,8 @@ function renderMfPage() {
 
   const tableFrame = document.getElementById('tableFrame');
   tableFrame.innerHTML = `
-    <div class="card-head"><span class="eyebrow">Holdings — ${holdings.length}</span></div>
-    <div class="table-scroll">
+    <div class="card-head collapsible"><span class="eyebrow"><span class="collapse-chevron"></span>Holdings — ${holdings.length}</span></div>
+    <div class="table-scroll collapsible-body">
       <table>
         <thead><tr>
           <th data-sort="name">Scheme</th><th data-sort="category">Category</th><th data-sort="units">Units</th><th data-sort="avgNav">Avg NAV</th><th data-sort="invested">Invested</th>
@@ -76,6 +76,7 @@ function renderMfPage() {
       </table>
     </div>
   `;
+  wireCollapsible(tableFrame, 'holdings-IN_MF', true);
   attachSortHandlers(tableFrame.querySelector('thead'), _mfSortState, renderMfPage);
   tableFrame.querySelectorAll('button[data-act]').forEach(btn => {
     btn.onclick = () => {
@@ -299,6 +300,7 @@ function wireTxnModal(overlay, assetType, holdingId, render, getEditingId, setEd
     renderMfPage();
   };
   addFrame.querySelector('#importMfBtn').onclick = openMfImportModal;
+  wireCollapsible(addFrame, 'add-IN_MF', false);
 
   renderMfPage();
 })();

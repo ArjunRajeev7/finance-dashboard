@@ -101,11 +101,11 @@ function renderStockLikePage(assetType) {
 
   const addFrame = document.getElementById('addFrame');
   addFrame.innerHTML = `
-    <div class="card-head">
-      <span class="eyebrow">Add ${isUS ? 'US stock / ETF' : 'NSE stock'}</span>
+    <div class="card-head collapsible">
+      <span class="eyebrow"><span class="collapse-chevron"></span>Add ${isUS ? 'US stock / ETF' : 'NSE stock'}</span>
       <button class="ghost" id="importBtn" style="font-size:12px;">Import CSV/Excel</button>
     </div>
-    <div class="card-body">
+    <div class="card-body collapsible-body">
       <div class="inline-form">
         <div class="form-field"><label>Symbol${isUS ? '' : ' (NSE)'}</label><input id="newSym" placeholder="${isUS ? 'AAPL / VOO' : 'RELIANCE'}" /></div>
         <div class="form-field"><label>Display name (optional)</label><input id="newName" placeholder="e.g. ${isUS ? 'Apple Inc' : 'Reliance Industries'}" /></div>
@@ -113,6 +113,7 @@ function renderStockLikePage(assetType) {
       </div>
     </div>
   `;
+  wireCollapsible(addFrame, 'add-' + assetType, false);
   addFrame.querySelector('#addHoldingBtn').onclick = () => {
     const sym = addFrame.querySelector('#newSym').value.trim().toUpperCase();
     if (!sym) return toast('Enter a symbol', 'err');
@@ -129,8 +130,8 @@ function renderStockLikePage(assetType) {
   const tableFrame = document.getElementById('tableFrame');
   const dualCols = isUS;
   tableFrame.innerHTML = `
-    <div class="card-head"><span class="eyebrow">Holdings — ${holdings.length}</span></div>
-    <div class="table-scroll">
+    <div class="card-head collapsible"><span class="eyebrow"><span class="collapse-chevron"></span>Holdings — ${holdings.length}</span></div>
+    <div class="table-scroll collapsible-body">
       <table>
         <thead><tr>
           <th data-sort="symbol">Symbol</th><th data-sort="qty">Qty</th><th data-sort="avgCost">Avg Cost</th><th data-sort="invested">Invested</th>
@@ -167,6 +168,7 @@ function renderStockLikePage(assetType) {
     </div>
   `;
 
+  wireCollapsible(tableFrame, 'holdings-' + assetType, true);
   attachSortHandlers(tableFrame.querySelector('thead'), sortState, () => renderStockLikePage(assetType));
   wireInfoTriggers(tableFrame);
 

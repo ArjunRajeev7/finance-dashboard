@@ -143,8 +143,8 @@ function renderDividendsPage() {
     const card = document.createElement('div');
     card.className = 'card';
     card.innerHTML = `
-      <div class="card-head"><span class="eyebrow">${acc.name} — ${rows.length} ${rows.length === 1 ? 'entry' : 'entries'}</span></div>
-      <div class="table-scroll">
+      <div class="card-head collapsible"><span class="eyebrow"><span class="collapse-chevron"></span>${acc.name} — ${rows.length} ${rows.length === 1 ? 'entry' : 'entries'}</span></div>
+      <div class="table-scroll collapsible-body">
         <table>
           <thead><tr>
             <th data-sort="symbol">Symbol</th><th data-sort="date">Ex-Date</th><th data-sort="qty">Qty</th>
@@ -156,6 +156,7 @@ function renderDividendsPage() {
       </div>
     `;
     tablesHolder.appendChild(card);
+    wireCollapsible(card, 'div-acc-' + acc.id, true);
     attachSortHandlers(card.querySelector('thead'), _indianDivSortStates[acc.id], renderDividendsPage);
     wireDivRowActions(card);
   });
@@ -164,8 +165,8 @@ function renderDividendsPage() {
   const usRows = sortRows(us, _usDivSortState, divRowAccessor);
   const usTableFrame = document.getElementById('usTableFrame');
   usTableFrame.innerHTML = `
-    <div class="card-head"><span class="eyebrow">US dividend history — ${usRows.length}</span></div>
-    <div class="table-scroll">
+    <div class="card-head collapsible"><span class="eyebrow"><span class="collapse-chevron"></span>US dividend history — ${usRows.length}</span></div>
+    <div class="table-scroll collapsible-body">
       <table>
         <thead><tr>
           <th data-sort="symbol">Symbol</th><th data-sort="date">Date</th><th data-sort="qty">Qty</th>
@@ -177,6 +178,7 @@ function renderDividendsPage() {
       </table>
     </div>
   `;
+  wireCollapsible(usTableFrame, 'div-us', true);
   attachSortHandlers(usTableFrame.querySelector('thead'), _usDivSortState, renderDividendsPage);
   wireDivRowActions(usTableFrame);
 
@@ -401,6 +403,7 @@ function openUsDivImportModal() {
     renderDividendsPage();
   };
   document.getElementById('importIndianDivBtn').onclick = openIndianDivImportModal;
+  wireCollapsible(document.getElementById('indianAddFrame'), 'add-div-in', false);
 
   // ---- US add form ----
   const usQty = document.getElementById('usDivQty');
@@ -441,6 +444,7 @@ function openUsDivImportModal() {
     renderDividendsPage();
   };
   document.getElementById('importUsDivBtn').onclick = openUsDivImportModal;
+  wireCollapsible(document.getElementById('usAddFrame'), 'add-div-us', false);
 
   renderDividendsPage();
 })();

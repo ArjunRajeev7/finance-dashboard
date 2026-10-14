@@ -401,8 +401,16 @@ th.sortable.active .sort-arrow { opacity: 1; color: var(--accent); }
 .modal-body { padding: 18px; }
 
 /* progress / weight bars */
-.weight-bar-track { background: var(--surface-sunken); border-radius: 100px; height: 8px; overflow: hidden; }
-.weight-bar-fill { background: var(--accent); height: 100%; border-radius: 100px; }
+.weight-bar-track { background: var(--surface-sunken); border-radius: 100px; height: 8px; overflow: hidden; position: relative; }
+.weight-bar-fill { background: var(--accent); height: 100%; border-radius: 100px; position: relative; overflow: hidden; }
+/* slow, subtle moving glow — suggests the bar is steadily filling toward the right */
+.weight-bar-fill::after {
+  content: ''; position: absolute; top: 0; bottom: 0; left: -50%; width: 50%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.38), transparent);
+  animation: bar-glow 3.6s ease-in-out infinite;
+}
+@keyframes bar-glow { 0% { left: -50%; } 100% { left: 110%; } }
+@media (prefers-reduced-motion: reduce) { .weight-bar-fill::after { animation: none; } }
 
 /* legend */
 .legend-item { display: inline-flex; align-items: center; gap: 6px; margin-right: 16px; font-size: 12px; color: var(--text-muted); margin-bottom: 6px; }
@@ -459,4 +467,25 @@ th.sortable.active .sort-arrow { opacity: 1; color: var(--accent); }
 .sidebar-scrim { display: none; }
 @media (max-width: 860px) {
   .sidebar-scrim.open { display: block; position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 25; }
+}
+
+
+/* ---------------- collapsible sections ---------------- */
+.card-head.collapsible { cursor: pointer; user-select: none; }
+.collapse-chevron { display: inline-flex; vertical-align: middle; margin-right: 8px; color: var(--text-faint); transition: transform .18s ease; }
+.collapse-chevron svg { width: 14px; height: 14px; }
+.card-head.collapsible.expanded .collapse-chevron { transform: rotate(90deg); }
+.collapsible-body:not(.expanded) { display: none; }
+
+/* ---------------- mobile bottom nav: every page + Settings (always last), scrolls if cramped ---------------- */
+@media (max-width: 860px) {
+  .bottom-nav { overflow-x: auto; overflow-y: hidden; justify-content: flex-start; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+  .bottom-nav::-webkit-scrollbar { display: none; }
+  .bottom-nav a, .bottom-nav button.bottom-nav-item { flex: 0 0 auto; min-width: 66px; max-width: none; }
+  .bottom-nav button.bottom-nav-item {
+    display: flex; flex-direction: column; align-items: center; gap: 3px;
+    color: var(--text-faint); font-size: 9.5px; font-weight: 500;
+    padding: 4px 6px; border-radius: var(--radius-sm); background: transparent; border: none; cursor: pointer;
+  }
+  .bottom-nav button.bottom-nav-item svg { width: 19px; height: 19px; }
 }
