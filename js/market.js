@@ -87,12 +87,13 @@ Market.fetchNseQuote = async function (symbol) {
   if (cached) return cached;
 
   async function tryYahoo(suffix, source) {
-    const yUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}${suffix}`;
+    const yUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}${suffix}?range=1d&interval=1d`;
     const data = await fetchJsonWithFallback(yUrl);
-    const price = data && data.chart && data.chart.result && data.chart.result[0]
-      ? data.chart.result[0].meta.regularMarketPrice : null;
+    const meta = data && data.chart && data.chart.result && data.chart.result[0] ? data.chart.result[0].meta : null;
+    const price = meta ? meta.regularMarketPrice : null;
     if (price == null) throw new Error('no price for ' + suffix);
-    return { price, asOf: new Date().toISOString(), exchange: source };
+    const prev = meta.previousClose != null ? meta.previousClose : meta.chartPreviousClose;
+    return { price, asOf: new Date().toISOString(), exchange: source, previousClose: prev != null ? prev : null };
   }
 
   try {
@@ -112,7 +113,8 @@ Market.fetchNseQuote = async function (symbol) {
   const data = await fetchJsonWithFallback(url, { headers: { 'Accept': 'application/json' } });
   const price = data && data.priceInfo ? data.priceInfo.lastPrice : null;
   if (price == null) throw new Error('No price found for ' + symbol + ' via Yahoo (NSE/BSE) or NSE official API');
-  const result = { price, asOf: new Date().toISOString(), exchange: 'NSE' };
+  const nsePrev = data.priceInfo && data.priceInfo.previousClose != null ? data.priceInfo.previousClose : null;
+  const result = { price, asOf: new Date().toISOString(), exchange: 'NSE', previousClose: nsePrev };
   Store.setPriceCache(cacheKey, result);
   return result;
 };
@@ -169,7 +171,8 @@ Market.fetchUsQuote = async function (symbol) {
     if (data['Note'] || data['Information']) throw new Error('Alpha Vantage rate limit hit — try again later');
     throw new Error('No price returned for ' + symbol);
   }
-  const result = { price: parseFloat(quote['05. price']), asOf: new Date().toISOString() };
+  const avPrev = quote['08. previous close'] != null ? parseFloat(quote['08. previous close']) : null;
+  const result = { price: parseFloat(quote['05. price']), asOf: new Date().toISOString(), previousClose: avPrev };
   Store.setPriceCache(cacheKey, result);
   return result;
 };
@@ -219,7 +222,7 @@ Market.refreshAll = async function (onProgress) {
   for (const h of d.holdings.IN_STOCK) {
     try {
       const q = await Market.fetchNseQuote(h.symbol);
-      Store.updateHolding('IN_STOCK', h.id, { lastPrice: q.price, lastPriceAt: q.asOf, priceSource: q.exchange || 'NSE' });
+      Store.updateHolding('IN_STOCK', h.id, { lastPrice: q.price, lastPriceAt: q.asOf, priceSource: q.exchange || 'NSE', previousClose: q.previousClose != null ? q.previousClose : h.previousClose, priceFetchedAt: new Date().toISOString() });
       updated.push(h.symbol);
     } catch (e) {
       failed.push({ holding: h.symbol, error: e.message });
@@ -231,7 +234,11 @@ Market.refreshAll = async function (onProgress) {
   for (const h of d.holdings.IN_MF) {
     try {
       const q = await Market.fetchMfNav(h.schemeCode);
-      Store.updateHolding('IN_MF', h.id, { lastPrice: q.price, lastPriceAt: q.asOf, priceSource: 'AMFI' });
+      // AMFI publishes no previous-close field. A new NAV date means the stored NAV is the previous day's;
+      // the same date means keep the earlier previous value (refreshing twice must not fake a change).
+      const sameNavDate = h.lastPriceAt === q.asOf;
+      const mfPrev = sameNavDate ? h.previousClose : (h.lastPrice != null ? h.lastPrice : undefined);
+      Store.updateHolding('IN_MF', h.id, { lastPrice: q.price, lastPriceAt: q.asOf, priceSource: 'AMFI', previousClose: mfPrev, priceFetchedAt: new Date().toISOString() });
       updated.push(h.name);
     } catch (e) {
       failed.push({ holding: h.name, error: e.message });
@@ -243,7 +250,7 @@ Market.refreshAll = async function (onProgress) {
   for (const h of d.holdings.US_STOCK) {
     try {
       const q = await Market.fetchUsQuote(h.symbol);
-      Store.updateHolding('US_STOCK', h.id, { lastPrice: q.price, lastPriceAt: q.asOf, priceSource: 'AlphaVantage' });
+      Store.updateHolding('US_STOCK', h.id, { lastPrice: q.price, lastPriceAt: q.asOf, priceSource: 'AlphaVantage', previousClose: q.previousClose != null ? q.previousClose : h.previousClose, priceFetchedAt: new Date().toISOString() });
       updated.push(h.symbol);
     } catch (e) {
       failed.push({ holding: h.symbol, error: e.message });

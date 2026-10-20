@@ -4,7 +4,7 @@
 
 // Single source of truth for the version shown in every page's footer and
 // referenced in README/CHANGELOG. Bump this alongside a new CHANGELOG entry.
-const APP_VERSION = 'v1.9.0';
+const APP_VERSION = 'v1.10.0';
 window.APP_VERSION = APP_VERSION;
 
 const Fmt = {
@@ -482,3 +482,31 @@ function wireCollapsible(cardEl, storageKey, defaultExpanded) {
   };
 }
 window.wireCollapsible = wireCollapsible;
+
+
+// ---------------- Today's Change (shared by Indian Stocks, US Stocks, Mutual Funds) ----------------
+// Per-holding cell: amount (INR) with the % move underneath, or a dash when there's
+// no live previous-close to compare against (manual price, never refreshed, or stale).
+function dayChangeCellHtml(val) {
+  if (val.dayChangeINR == null) {
+    return '<span style="color:var(--text-faint);" title="Needs a live price with a previous close — refresh prices">—</span>';
+  }
+  const cls = Fmt.gainClass(val.dayChangeINR);
+  return `<span class="dual-value ${cls}">${Fmt.gainMoney(val.dayChangeINR)}<span class="secondary" style="color:inherit; opacity:.85;">${Fmt.pct(val.dayChangePct)}</span></span>`;
+}
+window.dayChangeCellHtml = dayChangeCellHtml;
+
+// Summary box for the page's whole portfolio, placed right after Gain / Loss.
+function dayChangeCardHtml(rows) {
+  const withDay = rows.filter(r => r.val.dayChangeINR != null);
+  if (!withDay.length) {
+    return '<div class="stat-card"><div class="label">Today\'s Change</div><div class="value">—</div><div class="sub">refresh prices to load</div></div>';
+  }
+  const amount = withDay.reduce((s, r) => s + r.val.dayChangeINR, 0);
+  const prevValue = withDay.reduce((s, r) => s + r.val.prevValueINR, 0);
+  const pct = prevValue ? (amount / prevValue) * 100 : null;
+  const cls = Fmt.gainClass(amount);
+  const partial = withDay.length < rows.length ? ` · ${withDay.length} of ${rows.length} holdings` : '';
+  return `<div class="stat-card"><div class="label">Today's Change</div><div class="value ${cls}">${Fmt.gainMoney(amount)}</div><div class="sub ${cls}">${Fmt.pct(pct)}${partial}</div></div>`;
+}
+window.dayChangeCardHtml = dayChangeCardHtml;

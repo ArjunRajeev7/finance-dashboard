@@ -13,6 +13,7 @@ function mfRowAccessor(row, key) {
     case 'invested': return row.val.investedINR;
     case 'currentNav': return row.val.priceInfo ? row.val.priceInfo.price : null;
     case 'currentValue': return row.val.currentValueINR;
+    case 'dayChange': return row.val.dayChangeINR;
     case 'pnl': return row.val.gainINR;
     case 'pctChange': return row.val.gainPct;
     case 'xirr': return row.val.xirr;
@@ -33,6 +34,7 @@ function renderMfPage() {
     <div class="stat-card"><div class="label">Current Value</div><div class="value">${Fmt.money(totalCurrent)}</div></div>
     <div class="stat-card"><div class="label">Gain / Loss</div><div class="value ${Fmt.gainClass(totalGain)}">${Fmt.gainMoney(totalGain)}</div>
       <div class="sub ${Fmt.gainClass(totalGain)}">${Fmt.pct(totalInvested ? (totalGain / totalInvested) * 100 : 0)}</div></div>
+    ${dayChangeCardHtml(rows)}
   `;
 
   const allocHolder = document.getElementById('allocHolder');
@@ -50,7 +52,7 @@ function renderMfPage() {
       <table>
         <thead><tr>
           <th data-sort="name">Scheme</th><th data-sort="category">Category</th><th data-sort="units">Units</th><th data-sort="avgNav">Avg NAV</th><th data-sort="invested">Invested</th>
-          <th data-sort="currentNav">Current NAV</th><th data-sort="currentValue">Current Value</th><th data-sort="pnl">P&amp;L</th><th data-sort="pctChange">% Change</th><th data-sort="xirr">XIRR</th><th></th>
+          <th data-sort="currentNav">Current NAV</th><th data-sort="currentValue">Current Value</th><th data-sort="dayChange" title="Change vs previous close, as of your last price refresh">Today's Change</th><th data-sort="pnl">P&amp;L</th><th data-sort="pctChange">% Change</th><th data-sort="xirr">XIRR</th><th></th>
         </tr></thead>
         <tbody>
           ${rows.length ? rows.map(({ h, val }) => `
@@ -62,6 +64,7 @@ function renderMfPage() {
               <td class="num">${Fmt.money(val.investedINR)}</td>
               <td class="num">${Fmt.pulseDot(h)} ${val.priceInfo ? Fmt.moneyPrecise(val.priceInfo.price) : '—'}</td>
               <td class="num">${Fmt.money(val.currentValueINR)}</td>
+              <td class="num">${dayChangeCellHtml(val)}</td>
               <td class="num ${Fmt.gainClass(val.gainINR)}">${Fmt.gainMoney(val.gainINR)}</td>
               <td class="num ${Fmt.gainClass(val.gainPct)}">${Fmt.pct(val.gainPct)}</td>
               <td class="num ${Fmt.gainClass(val.xirr != null ? val.xirr * 100 : null)}">${val.xirr != null ? Fmt.pct(val.xirr * 100) : '—'}</td>
@@ -71,7 +74,7 @@ function renderMfPage() {
                 <button data-act="del" data-id="${h.id}" class="danger">Del</button>
               </div></td>
             </tr>
-          `).join('') : `<tr><td colspan="11" class="empty-state">No funds yet — add a scheme above</td></tr>`}
+          `).join('') : `<tr><td colspan="12" class="empty-state">No funds yet — add a scheme above</td></tr>`}
         </tbody>
       </table>
     </div>

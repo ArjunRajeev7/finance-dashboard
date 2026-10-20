@@ -1,6 +1,6 @@
 # Finance Tracker
 
-**Current version: v1.9.0** — see [CHANGELOG.md](CHANGELOG.md) for the full history of what's changed. The same version number is shown in the footer of every page, so you can confirm a deployment is actually live.
+**Current version: v1.10.0** — see [CHANGELOG.md](CHANGELOG.md) for the full history of what's changed. The same version number is shown in the footer of every page, so you can confirm a deployment is actually live.
 
 A local-first personal investment tracker with a light/dark theme system built for a data-dense fintech feel — not a generic dashboard template. Seven pages: Dashboard, Indian Stocks (NSE/BSE), US Stocks (incl. ETFs), Mutual Funds, Fixed Deposits, EPF, and Dividends. Live prices for NSE/BSE stocks, mutual fund NAVs, and US stocks/ETFs.
 
@@ -97,6 +97,7 @@ Open **Settings** (top bar) on any page:
 ## How the numbers are calculated
 
 - **Stocks / mutual funds**: every logged BUY/SELL/BONUS builds a cash-flow series; XIRR is solved on that plus current value. **Average cost excludes fees** (it's the pure per-share price you paid); fees are itemized separately in the purchase-lot tooltip with a running total. BONUS shares add quantity at zero cost, correctly diluting average cost without touching invested amount or XIRR cash flow.
+- **Today's Change** (Indian Stocks, US Stocks, Mutual Funds): live price vs the previous close saved at your last price refresh, times quantity held. Shown as a dash for manually priced holdings, never-refreshed or stale (>4 days) prices, and fully sold holdings. For funds the previous NAV is the one stored before the NAV date last changed.
 - **Fixed Deposits**: compound interest (`principal × (1 + rate/n)^(n×years)`, `n` = compounding frequency) up to the earlier of today or maturity, then flat at the maturity value. Tenure can be months or days.
 - **Portfolio XIRR** (dashboard): pools every cash flow across every holding and asset class into one series and solves once.
 - **Diversification metrics** (dashboard): largest single holding as % of portfolio, and an asset-class concentration score (sum of squared class weights ×100 — lower means more evenly spread).

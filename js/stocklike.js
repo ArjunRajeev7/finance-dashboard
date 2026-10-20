@@ -17,6 +17,7 @@ function stockRowAccessor(row, key) {
     case 'invested': return row.val.investedINR;
     case 'ltp': return row.val.priceInfo ? row.val.priceInfo.price : null;
     case 'currentValue': return row.val.currentValueINR;
+    case 'dayChange': return row.val.dayChangeINR;
     case 'pnl': return row.val.gainINR;
     case 'pctChange': return row.val.gainPct;
     case 'weight': return row.weight;
@@ -79,6 +80,7 @@ function renderStockLikePage(assetType) {
       <div class="stat-card"><div class="label">Current Value</div><div class="value dual-value">${Fmt.money(totalCurrent)}<span class="secondary">${Fmt.moneyPrecise(totalCurrentUSD, '$')}</span></div></div>
       <div class="stat-card"><div class="label">Gain / Loss</div><div class="value ${Fmt.gainClass(totalGain)} dual-value">${Fmt.gainMoney(totalGain)}<span class="secondary">${Fmt.gainMoney(totalGainUSD, '$')}</span></div>
         <div class="sub ${Fmt.gainClass(totalGain)}">${Fmt.pct(totalInvested ? (totalGain / totalInvested) * 100 : 0)}</div></div>
+      ${dayChangeCardHtml(rows)}
     `;
   } else {
     document.getElementById('summaryCards').innerHTML = `
@@ -87,6 +89,7 @@ function renderStockLikePage(assetType) {
       <div class="stat-card"><div class="label">Current Value</div><div class="value">${Fmt.money(totalCurrent)}</div></div>
       <div class="stat-card"><div class="label">Gain / Loss</div><div class="value ${Fmt.gainClass(totalGain)}">${Fmt.gainMoney(totalGain)}</div>
         <div class="sub ${Fmt.gainClass(totalGain)}">${Fmt.pct(totalInvested ? (totalGain / totalInvested) * 100 : 0)}</div></div>
+      ${dayChangeCardHtml(rows)}
     `;
   }
 
@@ -135,7 +138,7 @@ function renderStockLikePage(assetType) {
       <table>
         <thead><tr>
           <th data-sort="symbol">Symbol</th><th data-sort="qty">Qty</th><th data-sort="avgCost">Avg Cost</th><th data-sort="invested">Invested</th>
-          <th data-sort="ltp">LTP</th><th data-sort="currentValue">Current Value</th><th data-sort="pnl">P&amp;L</th><th data-sort="pctChange">% Change</th>
+          <th data-sort="ltp">LTP</th><th data-sort="currentValue">Current Value</th><th data-sort="dayChange" title="Change vs previous close, as of your last price refresh">Today's Change</th><th data-sort="pnl">P&amp;L</th><th data-sort="pctChange">% Change</th>
           <th data-sort="weight">Weight</th><th data-sort="xirr">XIRR</th>${isIN ? '<th data-sort="tags">Tags</th>' : ''}<th></th>
         </tr></thead>
         <tbody>
@@ -150,6 +153,7 @@ function renderStockLikePage(assetType) {
               <td class="num">${dualCols ? `<span class="dual-value">${Fmt.money(val.investedINR)}<span class="secondary">${Fmt.moneyPrecise(val.investedNative, '$')}</span></span>` : Fmt.money(val.investedINR)}</td>
               <td class="num">${Fmt.pulseDot(h)} ${val.priceInfo ? Fmt.moneyPrecise(val.priceInfo.price, currency) : '—'}</td>
               <td class="num">${dualCols ? `<span class="dual-value">${Fmt.money(val.currentValueINR)}<span class="secondary">${val.currentValueNative != null ? Fmt.moneyPrecise(val.currentValueNative, '$') : '—'}</span></span>` : Fmt.money(val.currentValueINR)}</td>
+              <td class="num">${dayChangeCellHtml(val)}</td>
               <td class="num ${Fmt.gainClass(val.gainINR)}">${dualCols ? `<span class="dual-value">${Fmt.gainMoney(val.gainINR)}<span class="secondary">${val.gainNative != null ? Fmt.gainMoney(val.gainNative, '$') : '—'}</span></span>` : Fmt.gainMoney(val.gainINR)}</td>
               <td class="num ${Fmt.gainClass(val.gainPct)}">${Fmt.pct(val.gainPct)}</td>
               <td class="num">${Fmt.num(weight, 1)}%</td>
@@ -162,7 +166,7 @@ function renderStockLikePage(assetType) {
                 <button data-act="del" data-id="${h.id}" class="danger">Del</button>
               </div></td>
             </tr>`;
-          }).join('') : `<tr><td colspan="${isIN ? 12 : 11}" class="empty-state">No holdings yet — add a symbol above</td></tr>`}
+          }).join('') : `<tr><td colspan="${isIN ? 13 : 12}" class="empty-state">No holdings yet — add a symbol above</td></tr>`}
         </tbody>
       </table>
     </div>

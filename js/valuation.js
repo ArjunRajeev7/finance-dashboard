@@ -23,6 +23,20 @@ Valuation.evalStockLike = function (assetType, holding, usdInr) {
   const gainINR = currentValueINR != null ? currentValueINR - investedINR : null;
   const gainPct = (currentValueINR != null && investedINR !== 0) ? (gainINR / Math.abs(investedINR)) * 100 : null;
 
+  // Today's change = live price vs the previous close captured at refresh time.
+  // Not shown for manual prices (no previous close) or when the price hasn't been
+  // refreshed in the last 4 days (so a weekend still shows Friday's move, but a
+  // long-stale price never poses as "today").
+  const prevClose = holding.previousClose;
+  const fetchedAt = holding.priceFetchedAt ? new Date(holding.priceFetchedAt).getTime() : null;
+  const freshEnough = fetchedAt != null && (Date.now() - fetchedAt) < 4 * 24 * 60 * 60 * 1000;
+  const canDayChange = !!priceInfo && priceInfo.source !== 'manual' && qty > 0 && freshEnough
+    && prevClose != null && !isNaN(prevClose) && prevClose > 0;
+  const dayChangeNative = canDayChange ? (priceInfo.price - prevClose) * qty : null;
+  const dayChangeINR = dayChangeNative != null ? dayChangeNative * fxMult : null;
+  const dayChangePct = canDayChange ? ((priceInfo.price - prevClose) / prevClose) * 100 : null;
+  const prevValueINR = canDayChange ? prevClose * qty * fxMult : null;
+
   const cashflows = priceInfo ? Finance.holdingCashflows(holding, priceInfo.price).map(cf => ({
     date: cf.date, amount: cf.amount * fxMult
   })) : [];
@@ -33,6 +47,7 @@ Valuation.evalStockLike = function (assetType, holding, usdInr) {
     symbol: holding.symbol, qty, avgCost: Finance.avgCost(holding),
     investedINR, currentValueINR, gainINR, gainPct,
     investedNative: invested, currentValueNative, gainNative: currentValueNative != null ? currentValueNative - invested : null,
+    dayChangeINR, dayChangeNative, dayChangePct, prevValueINR,
     fxRate: fxMult,
     xirr, priceInfo, hasPrice: !!priceInfo
   };

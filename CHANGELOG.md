@@ -17,6 +17,16 @@ build yet.
 
 ---
 
+## v1.10.0 — 2026-10-20 10:06 UTC — Today's Change
+- **Added**: a **Today's Change** column on Indian Stocks, US Stocks, and Mutual Funds, placed right after Current Value — the day's move in rupees with the % move underneath, green for gains and red for losses, sortable like the other columns.
+- **Added**: a **Today's Change** box on each of those three pages, right after Gain / Loss, totalling the whole page's portfolio (amount and % against the previous day's value). If only some holdings have data it says so, e.g. "2 of 4 holdings".
+- **Changed**: price refresh now also saves each holding's previous close — from Yahoo (NSE/BSE), NSE's official quote, or Alpha Vantage (US). AMFI publishes no previous NAV, so for funds the earlier NAV is used, and only when the NAV date has actually changed (refreshing twice in one day cannot create a fake change).
+- **Note**: the change is measured against the previous close **as of your last price refresh**. It shows a dash for manually priced holdings, holdings never refreshed since this update (click refresh once to populate), prices last refreshed more than 4 days ago (4 days so a weekend still shows Friday's move), and fully sold holdings. US stock changes are converted to INR at the current rate.
+- **Verified**: 19 logic checks (change maths incl. bonus shares and USD conversion, the stale/manual/no-previous-close cases, and the refresh rules for stocks, US stocks and funds) and 17 browser checks on rendered pages (column position, values, dashes, summary box, sorting) — all passing, no page errors.
+- **Not verified live**: the sandbox can't reach the live price services, so the exact field each service returns for "previous close" is unconfirmed until you refresh prices on the deployed site. If a column stays on dashes after refreshing, tell me which page and I'll investigate.
+
+---
+
 ## v1.9.0 — 2026-10-13 12:34 UTC — Collapsible sections, glow bars, mobile nav order
 - **Added**: the Add / Import sections on Indian Stocks, US Stocks, Mutual Funds, Fixed Deposits, and Dividends (both the Indian and US forms) now start collapsed behind a small arrow — click the section header to open it only when you have something to add. Clicking the Import button inside a header does not toggle it.
 - **Added**: the Holdings tables on Indian Stocks, US Stocks, and Mutual Funds, the three Dividend account tables, and the US dividend history table are collapsible the same way (they start expanded). Each section's open/closed state is remembered between visits and survives edits and re-renders. The Fixed Deposits holdings table and Maturity Timeline stay always visible.
