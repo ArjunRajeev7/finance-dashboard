@@ -17,6 +17,18 @@ build yet.
 
 ---
 
+## v1.12.1 — 2026-10-27 20:37 UTC — Price refresh fixes (Indian stocks slow, US not updating, mutual funds failing)
+- **Fixed — mutual funds could never load**: the AMFI address in the code was corrupted (`…/spragainstAll/NAVAll.txt` instead of `…/spages/NAVAll.txt`), so no scheme code, however correct, could ever return a NAV. Corrected. Funds now try **mfapi.in** first (small, and it also returns the previous day's NAV, so Today's Change for funds is exact) and fall back to AMFI's file, downloaded once and shared by all funds.
+- **Fixed — a stuck request froze the whole refresh**: nothing had a timeout, and the three asset classes ran one after another (Indian stocks, then funds, then US). One proxy that never answered stalled the Indian list, so funds and US prices were never reached. Every request now times out (8 s), and Indian stocks, funds, and US stocks refresh **in parallel**, a few symbols at a time.
+- **Fixed — failing symbols were extremely slow**: each could make up to ~18 attempts in a row (and the default proxy was tried twice, as both the Settings proxy and a built-in). Now each route is health-tracked — the one that worked last goes first, one that just failed or was blocked (403/429) is skipped for the rest of the refresh, and a "not found" answer (e.g. a BSE-only stock on NSE) stops the chain immediately. A manual refresh always starts fresh.
+- **Fixed — US prices stopped updating**: only Alpha Vantage was used, and its free tier allows ~25 requests a day. When its quota message appears (or no key is set), US prices now come from Yahoo Finance, and the app remembers the quota is spent so it stops wasting calls.
+- **Added**: live progress while refreshing ("Refreshing prices… 4 of 12"), so a slow refresh is never a silent greyed-out button.
+- **Changed**: failure pop-up shortened; the Activity log keeps the full reason for each failed symbol (which routes were tried, and whether each timed out, was blocked, or said "not found") — at most 6 individual errors per refresh plus a summary, so one bad refresh can't flood the 25-entry log. The Settings proxy label now reads "tried first when a price site blocks direct requests".
+- **Verified in simulation**: 25 checks of the price layer against a simulated hostile network (hanging proxies, 403-blocking proxy, unknown symbols, quota message, missing fund source, slow Indian section) and 17 browser checks on the real pages with the network intercepted — all passing, plus a full re-run of every earlier suite (153 checks in total, no page errors).
+- **NOT verified against the real services** (the sandbox has no internet): that mfapi.in allows direct browser calls, that Yahoo answers the way the code expects, and which free proxies are currently usable. The Activity log will show exactly what happens on your first refresh; if some symbols still fail, send me those log lines.
+
+---
+
 ## v1.12.0 — 2026-10-27 02:52 UTC — Tables that fit without sideways scrolling
 - **Measured first**: before changing anything, the widest tables were measured at five common screen widths (1280, 1366, 1440, 1536, 1920 px) with realistic data (long company and fund names, tags, US dual-currency figures). Indian Stocks was 322 px too wide at 1280 and still 66 px too wide at 1920, because the page was capped at 1320 px; Mutual Funds was worse.
 - **Changed**: the page content area now grows up to 1760 px on large monitors (was 1320 px), so wide screens actually use their width.

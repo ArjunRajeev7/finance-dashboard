@@ -1,6 +1,6 @@
 # Finance Tracker
 
-**Current version: v1.12.0** — see [CHANGELOG.md](CHANGELOG.md) for the full history of what's changed. The same version number is shown in the footer of every page, so you can confirm a deployment is actually live.
+**Current version: v1.12.1** — see [CHANGELOG.md](CHANGELOG.md) for the full history of what's changed. The same version number is shown in the footer of every page, so you can confirm a deployment is actually live.
 
 A local-first personal investment tracker with a light/dark theme system built for a data-dense fintech feel — not a generic dashboard template. Seven pages: Dashboard, Indian Stocks (NSE/BSE), US Stocks (incl. ETFs), Mutual Funds, Fixed Deposits, EPF, and Dividends. Live prices for NSE/BSE stocks, mutual fund NAVs, and US stocks/ETFs.
 
@@ -75,12 +75,14 @@ Open **Settings** (top bar) on any page:
 
 | Source | Setup | Notes |
 |---|---|---|
-| Indian Stocks | none — routed through a CORS proxy | Price lookup tries NSE first, then falls back to BSE (for NSE-only-listed misses like NSDL, POLYMED), then NSE's official API as a last resort. Swap the proxy or set a manual price per row if it stops working. |
-| Mutual Funds | none | Uses AMFI's free daily NAV file, matched by scheme code. |
-| US Stocks | Alpha Vantage API key (free) | Get one at alphavantage.co/support/#api-key. Free tier is rate-limited (25 requests/day) — refresh sparingly with many US holdings. |
+| Indian Stocks | none — routed through a CORS proxy when the site blocks direct requests | Looks up Yahoo Finance as NSE first, then BSE (for BSE-only listings like NSDL, POLYMED), then NSE's official quote as a last resort. Public proxies are free and sometimes blocked or rate-limited — see below. |
+| Mutual Funds | none | Tries mfapi.in first (it also supplies the previous day's NAV, which powers Today's Change), then AMFI's daily NAV file. Matched by AMFI scheme code. |
+| US Stocks | Alpha Vantage API key (free, optional) | Get one at alphavantage.co/support/#api-key. The free tier allows only ~25 requests per day; when that's used up (or no key is set) prices come from Yahoo Finance instead, so US prices keep working. |
 | USD → INR | none | frankfurter.app (ECB rates) with a fallback; pin a manual rate in Settings if you prefer. |
 
-**Refresh prices** (top bar) pulls fresh prices + FX. Cached 15 minutes locally to avoid hammering free APIs. If a symbol won't resolve, use the **price** button on that row for a manual value — used until the next successful live fetch. Manually-priced holdings don't show a "Today's Change," since there's no live previous-close to compare against.
+**Refresh prices** (top bar) pulls fresh prices + FX and shows live progress ("Refreshing prices… 4 of 12"). Indian stocks, mutual funds and US stocks refresh in parallel, a few symbols at a time, and every request has an 8-second timeout — one slow or dead source can't hold up the rest. Prices are cached 15 minutes locally. If a symbol won't resolve, use the **Price** button on its row for a manual value — used until the next successful live fetch.
+
+**If refreshes fail or crawl:** the exact reason for every failed symbol (which routes were tried, and whether each timed out, was blocked, or said "not found") is in **Settings → Activity log**. Free public CORS proxies are the weak link — they get rate-limited or start blocking sites without warning. The app remembers which route last worked, skips ones that just failed, and a manual refresh always starts fresh. For a permanent fix, point **Settings → CORS proxy** at a small proxy you run yourself (for example a free Cloudflare Worker); it's tried before the public ones.
 
 ## Selecting rows and bulk actions
 

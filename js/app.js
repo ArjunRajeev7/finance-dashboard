@@ -4,7 +4,7 @@
 
 // Single source of truth for the version shown in every page's footer and
 // referenced in README/CHANGELOG. Bump this alongside a new CHANGELOG entry.
-const APP_VERSION = 'v1.12.0';
+const APP_VERSION = 'v1.12.1';
 window.APP_VERSION = APP_VERSION;
 
 const Fmt = {
@@ -198,14 +198,27 @@ async function updateFxChip() {
 
 async function refreshPrices() {
   const btn = document.getElementById('refreshBtn');
+  if (btn.disabled) return; // a refresh is already running
   btn.disabled = true;
   btn.style.opacity = '0.5';
+
+  // live progress, so a slow refresh is never a silent greyed-out button
+  let region = document.querySelector('.toast-region');
+  if (!region) { region = document.createElement('div'); region.className = 'toast-region'; document.body.appendChild(region); }
+  const progress = document.createElement('div');
+  progress.className = 'toast';
+  progress.textContent = 'Refreshing prices…';
+  region.appendChild(progress);
+
   try {
-    const { updated, failed } = await Market.refreshAll();
+    const { updated, failed } = await Market.refreshAll((p) => {
+      progress.textContent = `Refreshing prices… ${p.done} of ${p.total}`;
+    });
     if (updated.length) toast(`Updated ${updated.length} price(s)`, 'ok');
     if (failed.length) {
       const first = failed[0];
-      toast(`${failed.length} failed. ${first.holding}: ${first.error}`, 'err');
+      const short = first.error.length > 110 ? first.error.slice(0, 110) + '…' : first.error;
+      toast(`${failed.length} failed — e.g. ${first.holding}: ${short} Full details: Settings → Activity log.`, 'err');
     }
     updateFxChip();
     updateSourceChip();
@@ -213,6 +226,7 @@ async function refreshPrices() {
   } catch (e) {
     toast('Refresh failed: ' + e.message, 'err');
   } finally {
+    progress.remove();
     btn.disabled = false;
     btn.style.opacity = '';
   }
@@ -267,7 +281,7 @@ function openSettingsModal() {
       <input id="setAlphaKey" value="${s.apiKeys.alphaVantage || ''}" placeholder="paste key…" />
     </div>
     <div class="form-field" style="margin-bottom:12px;">
-      <label>CORS proxy base URL (used for NSE + AMFI)</label>
+      <label>CORS proxy base URL (tried first when a price site blocks direct requests)</label>
       <input id="setProxy" value="${s.corsProxy || 'https://corsproxy.io/?url='}" />
     </div>
     <div class="form-field" style="margin-bottom:12px;">
