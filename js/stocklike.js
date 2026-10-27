@@ -4,6 +4,8 @@
 
 const TAG_PRESETS = ['IPO'];
 
+const _stockSelection = { IN_STOCK: new Set(), US_STOCK: new Set() };
+
 const _stockSortState = {
   IN_STOCK: { col: null, dir: 'desc' },
   US_STOCK: { col: null, dir: 'desc' }
@@ -133,13 +135,14 @@ function renderStockLikePage(assetType) {
   const tableFrame = document.getElementById('tableFrame');
   const dualCols = isUS;
   tableFrame.innerHTML = `
-    <div class="card-head collapsible"><span class="eyebrow"><span class="collapse-chevron"></span>Holdings — ${holdings.length}</span></div>
+    <div class="card-head collapsible"><span class="eyebrow"><span class="collapse-chevron"></span>Holdings — ${holdings.length}</span>${selectionToolbarHtml(_stockSelection[assetType].size, { showPrice: true, showTags: isIN })}</div>
     <div class="table-scroll collapsible-body">
       <table>
         <thead><tr>
+          <th class="select-col"><input type="checkbox" class="select-checkbox select-all" title="Select all" /></th>
           <th data-sort="symbol">Symbol</th><th data-sort="qty">Qty</th><th data-sort="avgCost">Avg Cost</th><th data-sort="invested">Invested</th>
           <th data-sort="ltp">LTP</th><th data-sort="currentValue">Current Value</th><th data-sort="dayChange" title="Change vs previous close, as of your last price refresh">Today's Change</th><th data-sort="pnl">P&amp;L</th><th data-sort="pctChange">% Change</th>
-          <th data-sort="weight">Weight</th><th data-sort="xirr">XIRR</th>${isIN ? '<th data-sort="tags">Tags</th>' : ''}<th></th>
+          <th data-sort="weight">Weight</th><th data-sort="xirr">XIRR</th>${isIN ? '<th data-sort="tags">Tags</th>' : ''}
         </tr></thead>
         <tbody>
           ${rows.length ? rows.map(({ h, val, weight }) => {
@@ -147,6 +150,7 @@ function renderStockLikePage(assetType) {
             registerInfoContent(infoKey, purchaseLotTooltipHtml(h, currency));
             return `
             <tr>
+              <td class="select-col"><input type="checkbox" class="select-checkbox row-select" data-id="${h.id}" /></td>
               <td>${h.symbol}${h.name && h.name !== h.symbol ? `<br><span class="row-name-sub">${h.name}</span>` : ''}</td>
               <td class="num">${Fmt.num(val.qty, val.qty % 1 === 0 ? 0 : 3)}<button class="info-trigger" data-info-key="${infoKey}" title="Purchase lots">i</button></td>
               <td class="num">${Fmt.moneyPrecise(val.avgCost, currency)}</td>
@@ -159,12 +163,6 @@ function renderStockLikePage(assetType) {
               <td class="num">${Fmt.num(weight, 1)}%</td>
               <td class="num ${Fmt.gainClass(val.xirr != null ? val.xirr * 100 : null)}">${val.xirr != null ? Fmt.pct(val.xirr * 100) : '—'}</td>
               ${isIN ? `<td style="text-align:left; white-space:normal; max-width:160px;">${renderTagBadges(h.tags)}</td>` : ''}
-              <td><div class="row-actions">
-                <button data-act="txns" data-id="${h.id}">Txns</button>
-                ${isIN ? `<button data-act="tags" data-id="${h.id}" class="ghost">Tags</button>` : ''}
-                <button data-act="price" data-id="${h.id}" class="ghost">Price</button>
-                <button data-act="del" data-id="${h.id}" class="danger">Del</button>
-              </div></td>
             </tr>`;
           }).join('') : `<tr><td colspan="${isIN ? 13 : 12}" class="empty-state">No holdings yet — add a symbol above</td></tr>`}
         </tbody>
@@ -176,20 +174,55 @@ function renderStockLikePage(assetType) {
   attachSortHandlers(tableFrame.querySelector('thead'), sortState, () => renderStockLikePage(assetType));
   wireInfoTriggers(tableFrame);
 
-  tableFrame.querySelectorAll('button[data-act]').forEach(btn => {
-    btn.onclick = () => {
-      const id = btn.dataset.id;
-      const h = Store.getHolding(assetType, id);
-      if (btn.dataset.act === 'txns') openTxnModal(assetType, h, isUS);
-      else if (btn.dataset.act === 'tags') openTagsModal(assetType, h);
-      else if (btn.dataset.act === 'price') openManualPriceModal(assetType, h);
-      else if (btn.dataset.act === 'del') {
-        if (confirm(`Delete ${h.symbol} and all its transactions?`)) {
-          Store.deleteHolding(assetType, id);
-          toast(h.symbol + ' deleted', 'ok');
+  setupBulkSelection(tableFrame, {
+    selection: _stockSelection[assetType],
+    ids: rows.map(r => r.h.id),
+    toolbarOpts: { showPrice: true, showTags: isIN },
+    onAction: (action, ids) => {
+      const sel = _stockSelection[assetType];
+      if (action === 'edit' && ids.length === 1) {
+        openTxnModal(assetType, Store.getHolding(assetType, ids[0]), isUS);
+      } else if (action === 'price' && ids.length === 1) {
+        openManualPriceModal(assetType, Store.getHolding(assetType, ids[0]));
+      } else if (action === 'tags' && ids.length) {
+        openBulkTagsModal(assetType, ids);
+      } else if (action === 'delete' && ids.length) {
+        const names = ids.map(id => { const h = Store.getHolding(assetType, id); return h ? h.symbol : id; });
+        if (confirm(`Delete ${ids.length} holding(s): ${names.join(', ')}? This also removes all their transactions.`)) {
+          ids.forEach(id => Store.deleteHolding(assetType, id));
+          sel.clear();
+          toast(`${ids.length} holding(s) deleted`, 'ok');
           renderStockLikePage(assetType);
         }
       }
+    }
+  });
+}
+
+// Tags for several holdings at once: adds the chosen tag to every selected holding.
+// (With exactly one selected, the full add/remove view opens instead.)
+function openBulkTagsModal(assetType, ids) {
+  if (ids.length === 1) return openTagsModal(assetType, Store.getHolding(assetType, ids[0]));
+  openModal(`Tags — ${ids.length} holdings`, `
+    <p style="color:var(--text-muted); font-size:12.5px; margin-top:0;">The tag you add here is applied to all ${ids.length} selected holdings. To remove a tag, select a single holding.</p>
+    <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:14px;">
+      ${TAG_PRESETS.map(tg => `<button class="ghost" data-preset-tag="${tg}">+ ${tg}</button>`).join('')}
+    </div>
+    <div class="tag-input-row">
+      <input id="customTag" placeholder="Custom tag…" />
+      <button id="addCustomTag" class="primary">Add to all selected</button>
+    </div>
+  `, (overlay) => {
+    const apply = (tag) => {
+      ids.forEach(id => Store.addTag(assetType, id, tag));
+      toast(`Tagged ${ids.length} holdings "${tag}"`, 'ok');
+      closeModal();
+      renderStockLikePage(assetType);
+    };
+    overlay.querySelectorAll('[data-preset-tag]').forEach(b => { b.onclick = () => apply(b.dataset.presetTag); });
+    overlay.querySelector('#addCustomTag').onclick = () => {
+      const v = overlay.querySelector('#customTag').value.trim();
+      if (v) apply(v);
     };
   });
 }

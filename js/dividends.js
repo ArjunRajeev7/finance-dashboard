@@ -12,6 +12,7 @@
 
 const _indianDivSortStates = { 1: { col: null, dir: 'desc' }, 2: { col: null, dir: 'desc' }, 3: { col: null, dir: 'desc' } };
 const _usDivSortState = { col: null, dir: 'desc' };
+const _divSelection = { 1: new Set(), 2: new Set(), 3: new Set(), us: new Set() };
 function divRowAccessor(row, key) {
   switch (key) {
     case 'date': return row.date;
@@ -30,16 +31,13 @@ function divRowHtml(r) {
   // Indian row: Symbol, Ex-Date, Qty, Dividend/Share, Total Dividend, Notes, actions
   return `
     <tr>
+      <td class="select-col"><input type="checkbox" class="select-checkbox row-select" data-id="${r.id}" /></td>
       <td>${r.symbol}</td>
       <td class="num">${Fmt.date(r.date)}</td>
       <td class="num">${r.qty != null ? Fmt.numExact(r.qty) : '—'}</td>
       <td class="num">${r.perShare != null ? Fmt.moneyPrecise(r.perShare, '₹') : '—'}</td>
       <td class="num">${Fmt.moneyPrecise(r.amount, '₹')}</td>
       <td style="text-align:left; white-space:normal; max-width:180px; color:var(--text-muted);">${r.notes || '—'}</td>
-      <td><div class="row-actions">
-        <button data-edit-id="${r.id}" class="ghost">Edit</button>
-        <button data-del-id="${r.id}" class="danger">Del</button>
-      </div></td>
     </tr>
   `;
 }
@@ -50,6 +48,7 @@ function usDivRowHtml(r, usdInr) {
   const tax = r.taxWithheld || 0;
   return `
     <tr>
+      <td class="select-col"><input type="checkbox" class="select-checkbox row-select" data-id="${r.id}" /></td>
       <td>${r.symbol}</td>
       <td class="num">${Fmt.date(r.date)}</td>
       <td class="num">${r.qty != null ? Fmt.numExact(r.qty) : '—'}</td>
@@ -59,27 +58,22 @@ function usDivRowHtml(r, usdInr) {
       <td class="num">${Fmt.moneyPrecise(r.amount, '$')}</td>
       <td class="num">${Fmt.money(r.amount * usdInr)}</td>
       <td style="text-align:left; white-space:normal; max-width:160px; color:var(--text-muted);">${r.notes || '—'}</td>
-      <td><div class="row-actions">
-        <button data-edit-id="${r.id}" class="ghost">Edit</button>
-        <button data-del-id="${r.id}" class="danger">Del</button>
-      </div></td>
     </tr>
   `;
 }
 
-function wireDivRowActions(container) {
-  container.querySelectorAll('button[data-del-id]').forEach(btn => {
-    btn.onclick = () => {
-      if (confirm('Delete this dividend entry?')) {
-        Store.deleteDividend(btn.dataset.delId);
-        toast('Dividend deleted', 'ok');
-        renderDividendsPage();
-      }
-    };
-  });
-  container.querySelectorAll('button[data-edit-id]').forEach(btn => {
-    btn.onclick = () => openEditDividendModal(btn.dataset.editId);
-  });
+// Edit works on exactly one selected dividend; Delete on one or many.
+function handleDivBulk(action, ids, selection) {
+  if (action === 'edit' && ids.length === 1) {
+    openEditDividendModal(ids[0]);
+  } else if (action === 'delete' && ids.length) {
+    if (confirm(`Delete ${ids.length} dividend entr${ids.length === 1 ? 'y' : 'ies'}?`)) {
+      ids.forEach(id => Store.deleteDividend(id));
+      selection.clear();
+      toast(`${ids.length} dividend entr${ids.length === 1 ? 'y' : 'ies'} deleted`, 'ok');
+      renderDividendsPage();
+    }
+  }
 }
 
 function renderDividendsPage() {
@@ -143,13 +137,13 @@ function renderDividendsPage() {
     const card = document.createElement('div');
     card.className = 'card';
     card.innerHTML = `
-      <div class="card-head collapsible"><span class="eyebrow"><span class="collapse-chevron"></span>${acc.name} — ${rows.length} ${rows.length === 1 ? 'entry' : 'entries'}</span></div>
+      <div class="card-head collapsible"><span class="eyebrow"><span class="collapse-chevron"></span>${acc.name} — ${rows.length} ${rows.length === 1 ? 'entry' : 'entries'}</span>${selectionToolbarHtml(_divSelection[acc.id].size, {})}</div>
       <div class="table-scroll collapsible-body">
         <table>
           <thead><tr>
-            <th data-sort="symbol">Symbol</th><th data-sort="date">Ex-Date</th><th data-sort="qty">Qty</th>
+            <th class="select-col"><input type="checkbox" class="select-checkbox select-all" title="Select all" /></th><th data-sort="symbol">Symbol</th><th data-sort="date">Ex-Date</th><th data-sort="qty">Qty</th>
             <th data-sort="perShare">Dividend/Share</th><th data-sort="amountNative">Total Dividend</th>
-            <th data-sort="notes">Notes</th><th></th>
+            <th data-sort="notes">Notes</th>
           </tr></thead>
           <tbody>${rows.length ? rows.map(r => divRowHtml(r)).join('') : `<tr><td colspan="7" class="empty-state">No dividends logged yet for ${acc.name}</td></tr>`}</tbody>
         </table>
@@ -158,21 +152,26 @@ function renderDividendsPage() {
     tablesHolder.appendChild(card);
     wireCollapsible(card, 'div-acc-' + acc.id, true);
     attachSortHandlers(card.querySelector('thead'), _indianDivSortStates[acc.id], renderDividendsPage);
-    wireDivRowActions(card);
+    setupBulkSelection(card, {
+      selection: _divSelection[acc.id],
+      ids: rows.map(r => r.id),
+      toolbarOpts: {},
+      onAction: (action, ids) => handleDivBulk(action, ids, _divSelection[acc.id])
+    });
   });
 
   // ---- US table ----
   const usRows = sortRows(us, _usDivSortState, divRowAccessor);
   const usTableFrame = document.getElementById('usTableFrame');
   usTableFrame.innerHTML = `
-    <div class="card-head collapsible"><span class="eyebrow"><span class="collapse-chevron"></span>US dividend history — ${usRows.length}</span></div>
+    <div class="card-head collapsible"><span class="eyebrow"><span class="collapse-chevron"></span>US dividend history — ${usRows.length}</span>${selectionToolbarHtml(_divSelection.us.size, {})}</div>
     <div class="table-scroll collapsible-body">
       <table>
         <thead><tr>
-          <th data-sort="symbol">Symbol</th><th data-sort="date">Date</th><th data-sort="qty">Qty</th>
+          <th class="select-col"><input type="checkbox" class="select-checkbox select-all" title="Select all" /></th><th data-sort="symbol">Symbol</th><th data-sort="date">Date</th><th data-sort="qty">Qty</th>
           <th data-sort="perShare">Dividend/Share</th><th data-sort="grossAmount">Dividend Received</th>
           <th data-sort="taxWithheld">Tax Withheld</th><th data-sort="amountNative">Total Dividend</th>
-          <th>Amount (INR)</th><th data-sort="notes">Notes</th><th></th>
+          <th>Amount (INR)</th><th data-sort="notes">Notes</th>
         </tr></thead>
         <tbody>${usRows.length ? usRows.map(r => usDivRowHtml(r, usdInr)).join('') : `<tr><td colspan="10" class="empty-state">No US dividends logged yet</td></tr>`}</tbody>
       </table>
@@ -180,7 +179,12 @@ function renderDividendsPage() {
   `;
   wireCollapsible(usTableFrame, 'div-us', true);
   attachSortHandlers(usTableFrame.querySelector('thead'), _usDivSortState, renderDividendsPage);
-  wireDivRowActions(usTableFrame);
+  setupBulkSelection(usTableFrame, {
+    selection: _divSelection.us,
+    ids: usRows.map(r => r.id),
+    toolbarOpts: {},
+    onAction: (action, ids) => handleDivBulk(action, ids, _divSelection.us)
+  });
 
   // ---- yearly breakdown (combined across all Indian accounts + US) ----
   const byYear = {};

@@ -17,6 +17,29 @@ build yet.
 
 ---
 
+## v1.12.0 — 2026-10-27 02:52 UTC — Tables that fit without sideways scrolling
+- **Measured first**: before changing anything, the widest tables were measured at five common screen widths (1280, 1366, 1440, 1536, 1920 px) with realistic data (long company and fund names, tags, US dual-currency figures). Indian Stocks was 322 px too wide at 1280 and still 66 px too wide at 1920, because the page was capped at 1320 px; Mutual Funds was worse.
+- **Changed**: the page content area now grows up to 1760 px on large monitors (was 1320 px), so wide screens actually use their width.
+- **Changed**: table cells use slightly tighter side padding; column headers may wrap onto two lines (e.g. "Today's / Change") instead of stretching the column; and the first column (symbol / scheme name, with its sub-line) wraps instead of forcing the table wider. On windows 1320 px wide or narrower, tables are a touch denser still.
+- **Changed**: the five summary boxes on the stock and fund pages now fit on one row down to ~1280 px wide (the new Today's Change box was dropping onto a row of its own); on phones, an odd last box spans the full width.
+- **Fixed**: on phones, large summary figures (such as a big loss with its minus sign) wrapped across two lines — they now scale to fit the card on one line.
+- **Result**: Indian Stocks, US Stocks, Mutual Funds, both dividend tables, Fixed Deposits, and the Dashboard table all fit with no sideways scrolling at every width tested. A very narrow window or a table with unusually long content can still scroll sideways inside its own card, as a last resort. Phones are unchanged in behaviour (tables scroll within their card; the page itself never scrolls sideways — checked at 360, 390, and 430 px).
+- **Verified**: width measurements across 5 screen widths × 7 tables, plus a full re-run of every earlier test suite against the new styling — 37 collapsible/glow/nav checks, 17 Today's Change checks, 38 bulk-selection checks, 19 logic checks — all passing, no page errors.
+
+---
+
+## v1.11.0 — 2026-10-25 09:30 UTC — Checkbox selection and bulk actions
+- **Changed**: the Indian Stocks, US Stocks, and Mutual Funds holdings tables and all four dividend tables (the three account tables and the US table) now have a checkbox on every row plus a select-all box in the header. The per-row Txns / Tags / Price / Del buttons are gone, which frees a whole column of width.
+- **Added**: **Edit**, **Price**, **Tags**, and **Delete** buttons in the top-right corner of each table's header (Dividends have Edit and Delete only; Mutual Funds have no Tags). **Edit** and **Price** work on exactly one checked row and are greyed out otherwise; **Tags** and **Delete** work on one or many. Edit on the stock and fund pages opens that holding's Transactions; on Dividends it opens the entry's edit dialog.
+- **Added**: bulk Tags — with several holdings checked, the tag you pick is added to all of them; with one checked, the full add/remove view opens as before.
+- **Added**: Delete asks for confirmation first, listing what will be removed, and clears the selection afterwards.
+- **Changed**: checking boxes updates the page in place rather than redrawing it, so text typed in an Add form and your scroll position are not lost. Selections survive sorting. Each dividend table keeps its own independent selection.
+- **Unchanged**: Fixed Deposits keeps its per-row Edit / Del buttons (not in scope for this change).
+- **Fixed**: with the checkbox column in front, the Symbol / Scheme column briefly became right-aligned — it is left-aligned again, while numeric columns stay right-aligned.
+- **Verified**: 43 automated browser checks — one row vs several rows enabling/greying the right buttons, select-all and partial state, row highlighting, Edit opening the right holding, header buttons not collapsing the table, selection surviving a sort, typed form text surviving a checkbox click, bulk tag and bulk delete on stocks, funds and each dividend table, tables not affecting each other, Fixed Deposits unchanged, and column alignment — all passing, no page errors.
+
+---
+
 ## v1.10.0 — 2026-10-20 10:06 UTC — Today's Change
 - **Added**: a **Today's Change** column on Indian Stocks, US Stocks, and Mutual Funds, placed right after Current Value — the day's move in rupees with the % move underneath, green for gains and red for losses, sortable like the other columns.
 - **Added**: a **Today's Change** box on each of those three pages, right after Gain / Loss, totalling the whole page's portfolio (amount and % against the previous day's value). If only some holdings have data it says so, e.g. "2 of 4 holdings".

@@ -4,7 +4,7 @@
 
 // Single source of truth for the version shown in every page's footer and
 // referenced in README/CHANGELOG. Bump this alongside a new CHANGELOG entry.
-const APP_VERSION = 'v1.10.0';
+const APP_VERSION = 'v1.12.0';
 window.APP_VERSION = APP_VERSION;
 
 const Fmt = {
@@ -510,3 +510,64 @@ function dayChangeCardHtml(rows) {
   return `<div class="stat-card"><div class="label">Today's Change</div><div class="value ${cls}">${Fmt.gainMoney(amount)}</div><div class="sub ${cls}">${Fmt.pct(pct)}${partial}</div></div>`;
 }
 window.dayChangeCardHtml = dayChangeCardHtml;
+
+
+// ---------------- Bulk selection (checkbox column + header toolbar) ----------------
+// Edit / Price need exactly one row checked (greyed out otherwise); Tags / Delete
+// work on one or many. Per-page code only supplies the ids and an onAction callback.
+function selectionToolbarHtml(count, opts) {
+  opts = opts || {};
+  return `<div class="bulk-actions">
+    ${count ? `<span class="bulk-count">${count} selected</span>` : ''}
+    <button type="button" data-bulk="edit" class="ghost" ${count === 1 ? '' : 'disabled'} title="Edit — select exactly one row">Edit</button>
+    ${opts.showPrice ? `<button type="button" data-bulk="price" class="ghost" ${count === 1 ? '' : 'disabled'} title="Set a manual price — select exactly one row">Price</button>` : ''}
+    ${opts.showTags ? `<button type="button" data-bulk="tags" class="ghost" ${count ? '' : 'disabled'} title="Add tags to the selected rows">Tags</button>` : ''}
+    <button type="button" data-bulk="delete" class="danger" ${count ? '' : 'disabled'} title="Delete the selected rows">Delete</button>
+  </div>`;
+}
+window.selectionToolbarHtml = selectionToolbarHtml;
+
+// frame: the card element. cfg: { selection:Set, ids:[ids of rows in this table], toolbarOpts, onAction(action, ids) }
+// Checking a box updates the page in place (no re-render), so typed form text and scroll position are untouched.
+function setupBulkSelection(frame, cfg) {
+  const sel = cfg.selection;
+  Array.from(sel).forEach(id => { if (!cfg.ids.includes(id)) sel.delete(id); });
+
+  function wireButtons() {
+    frame.querySelectorAll('.bulk-actions button[data-bulk]').forEach(btn => {
+      btn.onclick = (e) => {
+        e.stopPropagation();
+        if (btn.disabled) return;
+        cfg.onAction(btn.dataset.bulk, Array.from(sel));
+      };
+    });
+  }
+  function paint() {
+    frame.querySelectorAll('input.row-select').forEach(cb => {
+      cb.checked = sel.has(cb.dataset.id);
+      const tr = cb.closest('tr');
+      if (tr) tr.classList.toggle('row-selected', cb.checked);
+    });
+    const all = frame.querySelector('input.select-all');
+    if (all) {
+      const everyOn = cfg.ids.length > 0 && cfg.ids.every(id => sel.has(id));
+      all.checked = everyOn;
+      all.indeterminate = !everyOn && cfg.ids.some(id => sel.has(id));
+    }
+    const host = frame.querySelector('.bulk-actions');
+    if (host) { host.outerHTML = selectionToolbarHtml(sel.size, cfg.toolbarOpts); wireButtons(); }
+  }
+
+  frame.querySelectorAll('input.row-select').forEach(cb => {
+    cb.onclick = (e) => e.stopPropagation();
+    cb.onchange = () => { if (cb.checked) sel.add(cb.dataset.id); else sel.delete(cb.dataset.id); paint(); };
+  });
+  const all = frame.querySelector('input.select-all');
+  if (all) {
+    all.onclick = (e) => e.stopPropagation();
+    all.onchange = () => { cfg.ids.forEach(id => { if (all.checked) sel.add(id); else sel.delete(id); }); paint(); };
+  }
+  wireButtons();
+  paint();
+}
+window.setupBulkSelection = setupBulkSelection;

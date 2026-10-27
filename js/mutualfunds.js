@@ -3,6 +3,7 @@
    ============================================================ */
 
 const _mfSortState = { col: null, dir: 'desc' };
+const _mfSelection = new Set();
 
 function mfRowAccessor(row, key) {
   switch (key) {
@@ -47,16 +48,18 @@ function renderMfPage() {
 
   const tableFrame = document.getElementById('tableFrame');
   tableFrame.innerHTML = `
-    <div class="card-head collapsible"><span class="eyebrow"><span class="collapse-chevron"></span>Holdings — ${holdings.length}</span></div>
+    <div class="card-head collapsible"><span class="eyebrow"><span class="collapse-chevron"></span>Holdings — ${holdings.length}</span>${selectionToolbarHtml(_mfSelection.size, { showPrice: true })}</div>
     <div class="table-scroll collapsible-body">
       <table>
         <thead><tr>
+          <th class="select-col"><input type="checkbox" class="select-checkbox select-all" title="Select all" /></th>
           <th data-sort="name">Scheme</th><th data-sort="category">Category</th><th data-sort="units">Units</th><th data-sort="avgNav">Avg NAV</th><th data-sort="invested">Invested</th>
-          <th data-sort="currentNav">Current NAV</th><th data-sort="currentValue">Current Value</th><th data-sort="dayChange" title="Change vs previous close, as of your last price refresh">Today's Change</th><th data-sort="pnl">P&amp;L</th><th data-sort="pctChange">% Change</th><th data-sort="xirr">XIRR</th><th></th>
+          <th data-sort="currentNav">Current NAV</th><th data-sort="currentValue">Current Value</th><th data-sort="dayChange" title="Change vs previous close, as of your last price refresh">Today's Change</th><th data-sort="pnl">P&amp;L</th><th data-sort="pctChange">% Change</th><th data-sort="xirr">XIRR</th>
         </tr></thead>
         <tbody>
           ${rows.length ? rows.map(({ h, val }) => `
             <tr>
+              <td class="select-col"><input type="checkbox" class="select-checkbox row-select" data-id="${h.id}" /></td>
               <td>${h.name}<br><span class="row-name-sub">Code ${h.schemeCode}${h.folio ? ' · Folio ' + h.folio : ''}</span></td>
               <td>${h.category || '—'}</td>
               <td class="num">${Fmt.num(val.qty, 3)}</td>
@@ -68,11 +71,6 @@ function renderMfPage() {
               <td class="num ${Fmt.gainClass(val.gainINR)}">${Fmt.gainMoney(val.gainINR)}</td>
               <td class="num ${Fmt.gainClass(val.gainPct)}">${Fmt.pct(val.gainPct)}</td>
               <td class="num ${Fmt.gainClass(val.xirr != null ? val.xirr * 100 : null)}">${val.xirr != null ? Fmt.pct(val.xirr * 100) : '—'}</td>
-              <td><div class="row-actions">
-                <button data-act="txns" data-id="${h.id}">Txns</button>
-                <button data-act="price" data-id="${h.id}" class="ghost">Price</button>
-                <button data-act="del" data-id="${h.id}" class="danger">Del</button>
-              </div></td>
             </tr>
           `).join('') : `<tr><td colspan="12" class="empty-state">No funds yet — add a scheme above</td></tr>`}
         </tbody>
@@ -81,20 +79,25 @@ function renderMfPage() {
   `;
   wireCollapsible(tableFrame, 'holdings-IN_MF', true);
   attachSortHandlers(tableFrame.querySelector('thead'), _mfSortState, renderMfPage);
-  tableFrame.querySelectorAll('button[data-act]').forEach(btn => {
-    btn.onclick = () => {
-      const id = btn.dataset.id;
-      const h = Store.getHolding('IN_MF', id);
-      if (btn.dataset.act === 'txns') openTxnModal('IN_MF', h, false);
-      else if (btn.dataset.act === 'price') openManualPriceModal('IN_MF', h);
-      else if (btn.dataset.act === 'del') {
-        if (confirm(`Delete ${h.name} and all its transactions?`)) {
-          Store.deleteHolding('IN_MF', id);
-          toast('Fund deleted', 'ok');
+  setupBulkSelection(tableFrame, {
+    selection: _mfSelection,
+    ids: rows.map(r => r.h.id),
+    toolbarOpts: { showPrice: true },
+    onAction: (action, ids) => {
+      if (action === 'edit' && ids.length === 1) {
+        openTxnModal('IN_MF', Store.getHolding('IN_MF', ids[0]));
+      } else if (action === 'price' && ids.length === 1) {
+        openManualPriceModal('IN_MF', Store.getHolding('IN_MF', ids[0]));
+      } else if (action === 'delete' && ids.length) {
+        const names = ids.map(id => { const h = Store.getHolding('IN_MF', id); return h ? h.name : id; });
+        if (confirm(`Delete ${ids.length} fund(s): ${names.join(', ')}? This also removes all their transactions.`)) {
+          ids.forEach(id => Store.deleteHolding('IN_MF', id));
+          _mfSelection.clear();
+          toast(`${ids.length} fund(s) deleted`, 'ok');
           renderMfPage();
         }
       }
-    };
+    }
   });
 
   const catHolder = document.getElementById('categoryHolder');

@@ -1,6 +1,6 @@
 # Finance Tracker
 
-**Current version: v1.10.0** — see [CHANGELOG.md](CHANGELOG.md) for the full history of what's changed. The same version number is shown in the footer of every page, so you can confirm a deployment is actually live.
+**Current version: v1.12.0** — see [CHANGELOG.md](CHANGELOG.md) for the full history of what's changed. The same version number is shown in the footer of every page, so you can confirm a deployment is actually live.
 
 A local-first personal investment tracker with a light/dark theme system built for a data-dense fintech feel — not a generic dashboard template. Seven pages: Dashboard, Indian Stocks (NSE/BSE), US Stocks (incl. ETFs), Mutual Funds, Fixed Deposits, EPF, and Dividends. Live prices for NSE/BSE stocks, mutual fund NAVs, and US stocks/ETFs.
 
@@ -81,6 +81,17 @@ Open **Settings** (top bar) on any page:
 | USD → INR | none | frankfurter.app (ECB rates) with a fallback; pin a manual rate in Settings if you prefer. |
 
 **Refresh prices** (top bar) pulls fresh prices + FX. Cached 15 minutes locally to avoid hammering free APIs. If a symbol won't resolve, use the **price** button on that row for a manual value — used until the next successful live fetch. Manually-priced holdings don't show a "Today's Change," since there's no live previous-close to compare against.
+
+## Selecting rows and bulk actions
+
+On Indian Stocks, US Stocks, Mutual Funds, and every Dividends table, tick the checkbox on a row (or the box in the header to select all). The buttons in the table's top-right corner act on what you've ticked:
+
+- **Edit** — exactly one row (greyed out otherwise). Opens that holding's transactions, or that dividend's edit dialog.
+- **Price** — exactly one row; sets a manual price (stocks and funds only).
+- **Tags** — one or many; adds a tag to every ticked holding (Indian Stocks only).
+- **Delete** — one or many; asks for confirmation first.
+
+Fixed Deposits and EPF keep their own per-row buttons.
 
 ## Tags & account ownership (Indian Stocks)
 
