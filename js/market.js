@@ -27,14 +27,19 @@ const Market = {};
 const CACHE_TTL_MS = 15 * 60 * 1000; // 15 min
 
 Market.config = {
-  timeoutMs: 8000,       // per request
-  poolIndia: 3,          // simultaneous Indian-stock requests
+  timeoutMs: 8000,        // per request
+  poolIndia: 2,           // simultaneous Indian-stock requests (free proxies dislike bursts)
   poolMf: 3,
   poolUs: 2,
-  deadOnBlockMs: 180000, // proxy answered 403/429 (blocked / rate-limited)
+  indiaGapMs: 200,        // small stagger between Indian requests so they don't arrive as one burst
+  deadOnBlockMs: 180000,  // HTTP 403: this route is blocking us — won't clear soon
+  deadOnRateMs: 15000,    // HTTP 429: rate-limited — usually clears within seconds
   deadOnTimeoutMs: 60000,
   deadOnOtherMs: 30000,
-  deadOnCorsMs: 6 * 60 * 60 * 1000 // direct call blocked by CORS: won't fix itself this session
+  deadOnCorsMs: 6 * 60 * 60 * 1000, // direct call blocked by CORS: won't fix itself this session
+  maxWaitMs: 20000,       // if every route is paused, wait for the soonest one if it is back within this long...
+  waitWindowMs: 90000,    // ...but spend at most this long waiting, in total, per refresh
+  jitterMs: 1000          // random spread so waiting requests don't all wake at the same instant
 };
 
 // ---------------- routes: direct + CORS proxies ----------------
@@ -47,21 +52,35 @@ const BUILTIN_PROXIES = [
 
 const routeState = {}; // routeId -> { okAt, deadUntil }
 const st = (id) => routeState[id] || (routeState[id] = { okAt: 0, deadUntil: 0 });
+let failStats = {};    // "route: reason" -> count, for this refresh — the evidence behind "why did it fail"
+let waitDeadline = 0;  // wall-clock time after which we stop waiting for paused routes
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
 Market.resetRoutes = function () { Object.keys(routeState).forEach(id => { routeState[id].deadUntil = 0; }); };
+Market.resetStats = function () { failStats = {}; waitDeadline = Date.now() + Market.config.waitWindowMs; };
 
-function proxyRoutes() {
+function summarizeFailures() {
+  return Object.entries(failStats).sort((a, b) => b[1] - a[1]).slice(0, 4)
+    .map(([k, n]) => n > 1 ? `${k} ×${n}` : k).join(', ');
+}
+Market.summarizeFailures = summarizeFailures;
+
+function allProxyRoutes() {
   const custom = (Store.getSettings().corsProxy || '').trim();
   const routes = [];
   // the Settings proxy goes first — unless it is just one of the built-ins (the default is), which would double every attempt
   if (custom && !BUILTIN_PROXIES.some(b => b.build('') === custom)) {
-    routes.push({ id: 'custom-proxy', build: (u) => custom + encodeURIComponent(u) });
+    routes.push({ id: 'custom-proxy', label: 'your proxy', custom: true, build: (u) => custom + encodeURIComponent(u) });
   }
-  BUILTIN_PROXIES.forEach(b => routes.push(b));
+  BUILTIN_PROXIES.forEach(b => routes.push(Object.assign({ label: b.id }, b)));
+  return routes;
+}
+
+function proxyRoutes() {
   const now = Date.now();
-  return routes
+  return allProxyRoutes()
     .filter(r => st(r.id).deadUntil <= now)
-    .sort((a, b) => st(b.id).okAt - st(a.id).okAt); // recently-working first (stable for ties)
+    .sort((a, b) => (b.custom ? 1 : 0) - (a.custom ? 1 : 0) || st(b.id).okAt - st(a.id).okAt); // your own proxy, then whichever worked last
 }
 
 function netError(kind, e) {
@@ -78,7 +97,11 @@ async function timedGet(url, as, opts) {
     let r;
     try { r = await fetch(url, Object.assign({}, opts, { signal: ctrl.signal })); }
     catch (e) { throw netError(ctrl.signal.aborted ? 'timeout' : 'network', e); }
-    if (!r.ok) { const err = new Error('HTTP ' + r.status); err.kind = 'http'; err.status = r.status; throw err; }
+    if (!r.ok) {
+      const err = new Error('HTTP ' + r.status); err.kind = 'http'; err.status = r.status;
+      err.viaWorker = !!(r.headers && r.headers.get && r.headers.get('x-ft-proxy') === '1'); // reply came from the user's own Worker
+      throw err;
+    }
     try { return as === 'text' ? await r.text() : await r.json(); }
     catch (e) { throw netError(ctrl.signal.aborted ? 'timeout' : 'parse', e); }
   } finally { clearTimeout(timer); }
@@ -86,46 +109,87 @@ async function timedGet(url, as, opts) {
 
 function markFail(route, e) {
   const c = Market.config, s = st(route.id), now = Date.now();
-  if (e.kind === 'http' && (e.status === 403 || e.status === 429)) s.deadUntil = now + c.deadOnBlockMs;
+  const reason = e.kind === 'http' ? 'HTTP ' + e.status : e.message;
+  const key = route.label + ': ' + reason;
+  failStats[key] = (failStats[key] || 0) + 1;
+  if (e.kind === 'http' && e.status === 403) s.deadUntil = now + c.deadOnBlockMs;
+  else if (e.kind === 'http' && e.status === 429) s.deadUntil = now + c.deadOnRateMs;
   else if (e.kind === 'timeout') s.deadUntil = now + c.deadOnTimeoutMs;
   else if (e.kind === 'network' && route.direct) s.deadUntil = now + c.deadOnCorsMs;
   else s.deadUntil = now + c.deadOnOtherMs;
 }
 
-// Try direct, then the healthiest proxies. Returns parsed data or throws a short, readable error.
+// How long until some route (direct for this host, or any proxy) is usable again? null if none are merely paused.
+function soonestRevive(host) {
+  const now = Date.now();
+  const waits = ['direct:' + host].concat(allProxyRoutes().map(r => r.id)).map(id => st(id).deadUntil - now).filter(w => w > 0);
+  return waits.length ? Math.min(...waits) : null;
+}
+
+// Try direct, then the healthiest proxies. If every route is paused but one is due back soon (a rate limit
+// clearing), wait for it — within a total budget — instead of failing the whole list. Throws short, readable errors.
 async function getViaRoutes(url, as, opts) {
   const host = new URL(url).host;
   const direct = { id: 'direct:' + host, label: 'direct', direct: true, build: (u) => u };
-  const candidates = [];
-  if (st(direct.id).deadUntil <= Date.now()) candidates.push(direct);
-  proxyRoutes().forEach(r => candidates.push(Object.assign({ label: r.id }, r)));
+  let retried = false; // one extra pass after waiting out a rate limit
+  for (;;) {
+    const candidates = [];
+    if (st(direct.id).deadUntil <= Date.now()) candidates.push(direct);
+    proxyRoutes().forEach(r => candidates.push(r));
 
-  const notes = [];
-  for (const route of candidates) {
-    try {
-      const data = await timedGet(route.build(url), as, route.direct ? opts : undefined);
-      const s = st(route.id); s.okAt = Date.now(); s.deadUntil = 0;
-      return data;
-    } catch (e) {
-      // 404 = the service itself says "no such symbol". Believe it when it comes from a source that has
-      // answered before (or directly); a never-seen-working proxy returning 404 just counts as a bad route.
-      if (e.kind === 'http' && e.status === 404 && (route.direct || st(route.id).okAt > 0)) {
-        const nf = new Error('not found'); nf.notFound = true; throw nf;
+    if (!candidates.length) {
+      const wait = soonestRevive(host);
+      if (wait != null && wait <= Market.config.maxWaitMs && Date.now() + wait < waitDeadline) {
+        await sleep(wait + 50 + Math.random() * Market.config.jitterMs);
+        continue;
       }
-      markFail(route, e);
-      notes.push(`${route.label}: ${e.message}`);
+      const err = new Error('all routes are paused — ' + (summarizeFailures() || 'repeated failures'));
+      err.paused = true;
+      throw err;
     }
+
+    const notes = [];
+    let sawRate = false;
+    for (const route of candidates) {
+      try {
+        const data = await timedGet(route.build(url), as, route.direct ? opts : undefined);
+        const s = st(route.id); s.okAt = Date.now(); s.deadUntil = 0;
+        return data;
+      } catch (e) {
+        // 404 = the service itself says "no such symbol". Believe it when it comes directly, from the user's own Worker
+        // (it marks its replies), or from a proxy that has answered before; an unproven public proxy's 404 is just a bad route.
+        if (e.kind === 'http' && e.status === 404 && (route.direct || e.viaWorker || st(route.id).okAt > 0)) {
+          const nf = new Error('not found'); nf.notFound = true; throw nf;
+        }
+        if (e.kind === 'http' && e.status === 429) sawRate = true;
+        markFail(route, e);
+        notes.push(`${route.label}: ${e.message}`);
+      }
+    }
+    // everything said "slow down" (429): that clears in seconds, so wait it out and try once more
+    if (sawRate && !retried) {
+      const wait = soonestRevive(host);
+      if (wait != null && wait <= Market.config.maxWaitMs && Date.now() + wait < waitDeadline) {
+        retried = true;
+        await sleep(wait + 50 + Math.random() * Market.config.jitterMs);
+        continue;
+      }
+    }
+    throw new Error('no source answered (' + notes.join('; ') + ')');
   }
-  throw new Error(candidates.length
-    ? 'no source answered (' + notes.join('; ') + ')'
-    : 'all routes are paused after repeated failures — try again in a minute');
 }
 
-// Run worker(item) over items, at most `limit` at a time.
-async function runPool(items, limit, worker) {
+// Run worker(item) over items, at most `limit` at a time, optionally spacing out each runner's requests.
+async function runPool(items, limit, worker, gapMs) {
   let next = 0;
   const runners = Array.from({ length: Math.min(limit, items.length) }, async () => {
-    while (next < items.length) { const item = items[next++]; await worker(item); }
+    let started = false;
+    while (next < items.length) {
+      if (started && gapMs) await sleep(gapMs);
+      started = true;
+      const item = items[next++];
+      await worker(item);
+    }
   });
   await Promise.all(runners);
 }
@@ -151,7 +215,7 @@ Market.fetchNseQuote = async function (symbol) {
   const tried = [];
   for (const [suffix, source] of [['.NS', 'NSE'], ['.BO', 'BSE']]) {
     try { result = await yahooQuote(symbol + suffix, source); break; }
-    catch (e) { tried.push(`${suffix}: ${e.notFound ? 'not listed' : e.message}`); }
+    catch (e) { if (e.paused) throw e; tried.push(`${suffix}: ${e.notFound ? 'not listed' : e.message}`); }
   }
   if (!result) {
     // last resort: NSE's own endpoint (usually blocked without a browser session, so it rarely helps)
@@ -162,7 +226,7 @@ Market.fetchNseQuote = async function (symbol) {
         const prev = data.priceInfo.previousClose != null ? data.priceInfo.previousClose : null;
         result = { price, asOf: new Date().toISOString(), exchange: 'NSE', source: 'NSE', previousClose: prev };
       }
-    } catch (e) { tried.push('NSE official: ' + (e.notFound ? 'not listed' : e.message)); }
+    } catch (e) { if (e.paused) throw e; tried.push('NSE official: ' + (e.notFound ? 'not listed' : e.message)); }
   }
   if (!result) throw new Error('no price found — ' + tried.join(' | '));
   Store.setPriceCache(cacheKey, result);
@@ -300,20 +364,23 @@ Market.fetchUsdInr = async function () {
 
 // ---------------- Bulk refresh ----------------
 // Refreshes every holding's price. The three asset classes run in parallel; within each, a few symbols at a time.
-// onProgress({done, total}) fires after every holding. Returns { updated:[], failed:[{holding, error}], usdInr }.
+// onProgress({done, total}) fires after every holding.
+// Returns { updated:[], failed:[{holding, error}], usdInr, causes } — `causes` is the evidence for why routes failed.
 Market.refreshAll = async function (onProgress) {
-  Market.resetRoutes(); // a manual refresh means "try again now" — forget earlier pauses
+  Market.resetRoutes(); Market.resetStats(); // a manual refresh means "try again now" — forget earlier pauses
   const d = Store.load();
   const { IN_STOCK, IN_MF, US_STOCK } = d.holdings;
   const total = IN_STOCK.length + IN_MF.length + US_STOCK.length;
   const updated = [], failed = [];
-  let done = 0, logged = 0;
-  const MAX_LOGGED = 6; // don't let one bad refresh flood the 25-entry activity log
+  const groups = new Map(); // identical failures are logged once ("NTPC, TCS +42 more"), not 44 times
+  let done = 0;
   const step = () => { done++; onProgress && onProgress({ done, total }); };
   const nowIso = () => new Date().toISOString();
   const fail = (label, what, e) => {
     failed.push({ holding: label, error: e.message });
-    if (logged++ < MAX_LOGGED) Store.log('error', `${what} failed — ${label}: ${e.message}`);
+    const key = what + '|' + e.message;
+    const g = groups.get(key) || { what, message: e.message, labels: [] };
+    g.labels.push(label); groups.set(key, g);
   };
 
   const fxPromise = Market.fetchUsdInr().catch(() => 83).then(rate => {
@@ -328,7 +395,7 @@ Market.refreshAll = async function (onProgress) {
       updated.push(h.symbol);
     } catch (e) { fail(h.symbol, 'Price refresh', e); }
     step();
-  });
+  }, Market.config.indiaGapMs);
 
   const funds = runPool(IN_MF, Market.config.poolMf, async (h) => {
     try {
@@ -354,9 +421,44 @@ Market.refreshAll = async function (onProgress) {
   });
 
   const [usdInr] = await Promise.all([fxPromise, stocks, funds, us]);
-  const extra = failed.length > MAX_LOGGED ? ` (first ${MAX_LOGGED} errors logged above)` : '';
-  Store.log(failed.length ? 'error' : 'info', `Refresh complete: ${updated.length} updated, ${failed.length} failed${failed.length ? extra : ''}`);
-  return { updated, failed, usdInr };
+
+  // Activity log: one line per DISTINCT problem (max 6), the main cause, then the summary.
+  let logged = 0;
+  for (const g of groups.values()) {
+    if (logged++ >= 6) break;
+    const names = g.labels.slice(0, 3).join(', ') + (g.labels.length > 3 ? ` +${g.labels.length - 3} more` : '');
+    Store.log('error', `${g.what} failed — ${names}: ${g.message}`);
+  }
+  const causes = failed.length ? summarizeFailures() : '';
+  if (causes) Store.log('error', `Main cause of the failures — ${causes}`);
+  Store.log(failed.length ? 'error' : 'info', `Refresh complete: ${updated.length} updated, ${failed.length} failed`);
+  return { updated, failed, usdInr, causes };
+};
+
+// ---------------- Diagnostics: "Test price sources" ----------------
+// Probes each route against a known symbol, right now, from this browser, and reports what each one says.
+Market.diagnose = async function () {
+  Market.resetRoutes(); Market.resetStats();
+  const yurl = 'https://query1.finance.yahoo.com/v8/finance/chart/RELIANCE.NS?range=1d&interval=1d';
+  const readYahoo = (j) => {
+    const m = j && j.chart && j.chart.result && j.chart.result[0] && j.chart.result[0].meta;
+    if (!m || m.regularMarketPrice == null) throw new Error('reachable, but the reply had no price');
+    return 'RELIANCE price ' + m.regularMarketPrice;
+  };
+  const probes = [
+    ['Yahoo Finance — direct from your browser', async () => readYahoo(await timedGet(yurl, 'json'))]
+  ].concat(allProxyRoutes().map(r => ['Yahoo Finance — via ' + r.label, async () => readYahoo(await timedGet(r.build(yurl), 'json'))]));
+  probes.push(['Mutual funds — mfapi.in', async () => {
+    const j = await timedGet('https://api.mfapi.in/mf/120503', 'json');
+    if (!j || !j.data || !j.data.length) throw new Error('reachable, but no NAV in the reply');
+    return 'NAV ' + j.data[0].nav + ' on ' + j.data[0].date;
+  }]);
+  const rows = await Promise.all(probes.map(async ([name, fn]) => {
+    const t0 = Date.now();
+    try { return { name, ok: true, detail: await fn(), ms: Date.now() - t0 }; }
+    catch (e) { return { name, ok: false, detail: e.kind === 'http' ? 'HTTP ' + e.status : e.message, ms: Date.now() - t0 }; }
+  }));
+  return rows;
 };
 
 Market._internals = { getViaRoutes, runPool, routeState, loadAmfiFile };

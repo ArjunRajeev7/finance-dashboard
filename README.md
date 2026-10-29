@@ -1,6 +1,6 @@
 # Finance Tracker
 
-**Current version: v1.12.1** — see [CHANGELOG.md](CHANGELOG.md) for the full history of what's changed. The same version number is shown in the footer of every page, so you can confirm a deployment is actually live.
+**Current version: v1.12.2** — see [CHANGELOG.md](CHANGELOG.md) for the full history of what's changed. The same version number is shown in the footer of every page, so you can confirm a deployment is actually live.
 
 A local-first personal investment tracker with a light/dark theme system built for a data-dense fintech feel — not a generic dashboard template. Seven pages: Dashboard, Indian Stocks (NSE/BSE), US Stocks (incl. ETFs), Mutual Funds, Fixed Deposits, EPF, and Dividends. Live prices for NSE/BSE stocks, mutual fund NAVs, and US stocks/ETFs.
 
@@ -82,7 +82,30 @@ Open **Settings** (top bar) on any page:
 
 **Refresh prices** (top bar) pulls fresh prices + FX and shows live progress ("Refreshing prices… 4 of 12"). Indian stocks, mutual funds and US stocks refresh in parallel, a few symbols at a time, and every request has an 8-second timeout — one slow or dead source can't hold up the rest. Prices are cached 15 minutes locally. If a symbol won't resolve, use the **Price** button on its row for a manual value — used until the next successful live fetch.
 
-**If refreshes fail or crawl:** the exact reason for every failed symbol (which routes were tried, and whether each timed out, was blocked, or said "not found") is in **Settings → Activity log**. Free public CORS proxies are the weak link — they get rate-limited or start blocking sites without warning. The app remembers which route last worked, skips ones that just failed, and a manual refresh always starts fresh. For a permanent fix, point **Settings → CORS proxy** at a small proxy you run yourself (for example a free Cloudflare Worker); it's tried before the public ones.
+**If refreshes fail or crawl:** open **Settings → Test price sources**. It checks, right now and from your own browser, whether Yahoo Finance and mfapi.in can be reached directly or through each proxy, and shows ✓ or ✗ with the reason (for example "HTTP 403" = that proxy is blocking you). The **Activity log** also records the main cause of every failed refresh. Free public CORS proxies are the weak link — they get rate-limited or start blocking sites without warning — so if the test shows ✗ everywhere, or refreshes only work for the first few symbols, run your own proxy (next section).
+
+
+## Run your own proxy (recommended if refreshes fail)
+
+Browsers aren't allowed to call Yahoo Finance directly, so the tracker normally goes through free public proxies. Those are shared by thousands of people and often rate-limit or block, which shows up as "all routes are paused" or only the first few symbols refreshing. A proxy that only *you* use avoids that. `proxy/cloudflare-worker.js` is a ~80-line one for Cloudflare Workers; the free plan (100,000 requests/day) is far more than you need.
+
+What it does: fetches Yahoo / AMFI / mfapi.in on the server side with a normal browser identity (Yahoo throttles anonymous clients), adds the CORS header so your tracker may read the reply, and caches replies for 2 minutes. It only forwards those few price sites, GET requests only, so it can't be used as a general open proxy.
+
+**Setup (about 5 minutes; Cloudflare's menu names change now and then, but the steps are the same):**
+
+1. Create a free account at cloudflare.com (no card needed for Workers).
+2. Dashboard → **Workers & Pages** → **Create** → **Create Worker**. Name it something like `finance-proxy` and click **Deploy** (the placeholder code is fine for now).
+3. Click **Edit code**, delete everything in the editor, paste the whole contents of `proxy/cloudflare-worker.js`, and click **Deploy**.
+4. Copy the Worker's address — it looks like `https://finance-proxy.YOURNAME.workers.dev`.
+5. In the tracker open **Settings**, set **CORS proxy base URL** to that address followed by `/?url=` — for example `https://finance-proxy.YOURNAME.workers.dev/?url=` — and click **Save**.
+6. Click **Test price sources**. The line "Yahoo Finance — via your proxy" should show ✓. Then **Refresh prices**.
+7. Use **Save to file** and commit the new `data.json`, so the proxy setting is remembered on your other devices.
+
+Your proxy is tried before all the public ones, and a refresh only falls back to them if it fails.
+
+Optional hardening: in the Worker's **Settings → Variables**, add `ALLOWED_ORIGIN` = `https://YOURNAME.github.io` so only your own site can read its replies.
+
+Honest limits: the Worker's logic is covered by automated tests that simulate Cloudflare, but it hasn't been run on a real Cloudflare account by me, and Yahoo can still choose to throttle any source. If **Test price sources** shows ✗ for your proxy, the reason is printed on that line — send it to me.
 
 ## Selecting rows and bulk actions
 
@@ -134,6 +157,7 @@ js/importer.js                                        CSV/Excel import (SheetJS 
 js/app.js                                             shared sidebar/header, version stamping, save/reload-from-file, settings
 js/dashboard.js, js/stocklike.js, js/mutualfunds.js,
 js/fixeddeposits.js, js/epf.js, js/dividends.js       per-page logic
+proxy/cloudflare-worker.js                            optional self-hosted price proxy (see "Run your own proxy")
 manifest.json, sw.js                                  PWA support
 robots.txt                                            blocks search-engine indexing
 CHANGELOG.md                                          full version history

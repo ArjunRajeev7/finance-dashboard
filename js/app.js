@@ -4,7 +4,7 @@
 
 // Single source of truth for the version shown in every page's footer and
 // referenced in README/CHANGELOG. Bump this alongside a new CHANGELOG entry.
-const APP_VERSION = 'v1.12.1';
+const APP_VERSION = 'v1.12.2';
 window.APP_VERSION = APP_VERSION;
 
 const Fmt = {
@@ -211,14 +211,16 @@ async function refreshPrices() {
   region.appendChild(progress);
 
   try {
-    const { updated, failed } = await Market.refreshAll((p) => {
+    const { updated, failed, causes } = await Market.refreshAll((p) => {
       progress.textContent = `Refreshing prices… ${p.done} of ${p.total}`;
     });
     if (updated.length) toast(`Updated ${updated.length} price(s)`, 'ok');
     if (failed.length) {
       const first = failed[0];
-      const short = first.error.length > 110 ? first.error.slice(0, 110) + '…' : first.error;
-      toast(`${failed.length} failed — e.g. ${first.holding}: ${short} Full details: Settings → Activity log.`, 'err');
+      const why = causes
+        ? `Main cause: ${causes.length > 150 ? causes.slice(0, 150) + '…' : causes}.`
+        : `e.g. ${first.holding}: ${first.error.length > 110 ? first.error.slice(0, 110) + '…' : first.error}`;
+      toast(`${failed.length} failed. ${why} Settings → Test price sources shows what's reachable; the Activity log has the detail.`, 'err');
     }
     updateFxChip();
     updateSourceChip();
@@ -308,6 +310,14 @@ function openSettingsModal() {
 
     <div style="margin-top:22px; padding-top:16px; border-top:1px solid var(--border);">
       <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
+        <span class="eyebrow" style="font-size:11px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:var(--text-muted);">Price sources</span>
+        <button class="ghost" id="diagBtn" style="font-size:11.5px; padding:4px 9px;">Test price sources</button>
+      </div>
+      <div id="diagOut" style="font-size:12px; color:var(--text-muted); line-height:1.6;">Checks right now, from this browser, which routes can actually reach the price sites. Takes a few seconds and doesn't use any Alpha Vantage quota.</div>
+    </div>
+
+    <div style="margin-top:22px; padding-top:16px; border-top:1px solid var(--border);">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
         <span class="eyebrow" style="font-size:11px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:var(--text-muted);">Activity log</span>
         <button class="ghost" id="clearLogsBtn" style="font-size:11.5px; padding:4px 9px;">Clear</button>
       </div>
@@ -360,6 +370,30 @@ function openSettingsModal() {
         closeModal();
         setTimeout(() => location.reload(), 400);
       }
+    };
+    overlay.querySelector('#diagBtn').onclick = async () => {
+      const btn = overlay.querySelector('#diagBtn'), out = overlay.querySelector('#diagOut');
+      btn.disabled = true; out.textContent = 'Testing… (up to ~10 seconds)';
+      let rows;
+      try { rows = await Market.diagnose(); }
+      catch (e) { out.textContent = 'Test could not run: ' + e.message; btn.disabled = false; return; }
+      out.textContent = '';
+      rows.forEach(r => {
+        const line = document.createElement('div');
+        line.style.cssText = 'display:flex; gap:8px; align-items:baseline;';
+        const mark = document.createElement('b'); mark.textContent = r.ok ? '✓' : '✗'; mark.style.color = r.ok ? 'var(--gain)' : 'var(--loss)';
+        const txt = document.createElement('span'); txt.textContent = `${r.name} — ${r.detail} (${r.ms} ms)`;
+        line.appendChild(mark); line.appendChild(txt); out.appendChild(line);
+      });
+      const yahoo = rows.filter(r => r.name.startsWith('Yahoo'));
+      const okNames = yahoo.filter(r => r.ok).map(r => r.name.replace('Yahoo Finance — ', '').replace(/^via /, ''));
+      const verdict = document.createElement('div');
+      verdict.style.cssText = 'margin-top:8px; color:var(--text);';
+      verdict.textContent = okNames.length
+        ? `Indian/US prices can be fetched via: ${okNames.join(', ')}. If a full refresh still fails partway, the free proxies are rate-limiting — running your own proxy (see README) fixes that.`
+        : 'No route can reach Yahoo Finance from this browser right now, which is why Indian and US prices fail. Set up your own proxy (README → "Run your own proxy") and paste its address into the CORS proxy field above.';
+      out.appendChild(verdict);
+      btn.disabled = false;
     };
     overlay.querySelector('#clearLogsBtn').onclick = () => {
       Store.clearLogs();
