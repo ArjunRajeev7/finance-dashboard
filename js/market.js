@@ -65,8 +65,16 @@ function summarizeFailures() {
 }
 Market.summarizeFailures = summarizeFailures;
 
+// Be forgiving about the pasted address: "https://name.workers.dev" or ".../" becomes ".../?url="
+function normalizeProxyAddress(addr) {
+  addr = (addr || '').trim();
+  if (!addr || /[?&]url=$/i.test(addr) || addr.includes('?')) return addr;
+  return /^https?:\/\/[^/]+\/?$/i.test(addr) ? addr.replace(/\/?$/, '/?url=') : addr;
+}
+Market.normalizeProxyAddress = normalizeProxyAddress;
+
 function allProxyRoutes() {
-  const custom = (Store.getSettings().corsProxy || '').trim();
+  const custom = normalizeProxyAddress(Store.getSettings().corsProxy);
   const routes = [];
   // the Settings proxy goes first — unless it is just one of the built-ins (the default is), which would double every attempt
   if (custom && !BUILTIN_PROXIES.some(b => b.build('') === custom)) {
@@ -112,7 +120,7 @@ function markFail(route, e) {
   const reason = e.kind === 'http' ? 'HTTP ' + e.status : e.message;
   const key = route.label + ': ' + reason;
   failStats[key] = (failStats[key] || 0) + 1;
-  if (e.kind === 'http' && e.status === 403) s.deadUntil = now + c.deadOnBlockMs;
+  if (e.kind === 'http' && (e.status === 403 || e.status === 401)) s.deadUntil = now + c.deadOnBlockMs;
   else if (e.kind === 'http' && e.status === 429) s.deadUntil = now + c.deadOnRateMs;
   else if (e.kind === 'timeout') s.deadUntil = now + c.deadOnTimeoutMs;
   else if (e.kind === 'network' && route.direct) s.deadUntil = now + c.deadOnCorsMs;
@@ -436,29 +444,64 @@ Market.refreshAll = async function (onProgress) {
 };
 
 // ---------------- Diagnostics: "Test price sources" ----------------
-// Probes each route against a known symbol, right now, from this browser, and reports what each one says.
+// Probes each route against a known symbol, right now, from this browser, and explains what each one says.
+// A no-cors request succeeds whenever the network path works (even if the site forbids page access),
+// so it separates "the site doesn't allow web pages (CORS)" from "your network can't reach it at all".
+async function probeReach(url) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), Market.config.timeoutMs);
+  try { await fetch(url, { mode: 'no-cors', signal: ctrl.signal }); return true; }
+  catch (e) { return false; }
+  finally { clearTimeout(timer); }
+}
+
+async function explainFailure(e, url) {
+  if (e.kind === 'http') {
+    if (e.status === 401) return 'HTTP 401 — this proxy now demands a login (no longer free)';
+    if (e.status === 403) return 'HTTP 403 — this proxy is blocking requests from websites';
+    if (e.status === 429) return 'HTTP 429 — rate-limited right now';
+    if (e.status === 404) return 'HTTP 404 — not found';
+    return 'HTTP ' + e.status;
+  }
+  if (e.kind === 'network') {
+    return (await probeReach(url))
+      ? 'reachable, but it does not let web pages read its replies (CORS) — needs a proxy'
+      : 'cannot be reached from this network (offline, a firewall/filter, or an ad-blocker/extension blocking it)';
+  }
+  return e.message; // timed out / unreadable reply
+}
+
 Market.diagnose = async function () {
   Market.resetRoutes(); Market.resetStats();
   const yurl = 'https://query1.finance.yahoo.com/v8/finance/chart/RELIANCE.NS?range=1d&interval=1d';
   const readYahoo = (j) => {
-    const m = j && j.chart && j.chart.result && j.chart.result[0] && j.chart.result[0].meta;
-    if (!m || m.regularMarketPrice == null) throw new Error('reachable, but the reply had no price');
-    return 'RELIANCE price ' + m.regularMarketPrice;
+    const meta = j && j.chart && j.chart.result && j.chart.result[0] && j.chart.result[0].meta;
+    if (!meta || meta.regularMarketPrice == null) throw new Error('reachable, but the reply had no price');
+    return 'RELIANCE price ' + meta.regularMarketPrice;
   };
-  const probes = [
-    ['Yahoo Finance — direct from your browser', async () => readYahoo(await timedGet(yurl, 'json'))]
-  ].concat(allProxyRoutes().map(r => ['Yahoo Finance — via ' + r.label, async () => readYahoo(await timedGet(r.build(yurl), 'json'))]));
-  probes.push(['Mutual funds — mfapi.in', async () => {
-    const j = await timedGet('https://api.mfapi.in/mf/120503', 'json');
-    if (!j || !j.data || !j.data.length) throw new Error('reachable, but no NAV in the reply');
+  const probes = [];
+  const mine = allProxyRoutes().find(r => r.custom);
+  if (mine) {
+    const root = normalizeProxyAddress(Store.getSettings().corsProxy).replace(/[?&]url=$/i, '');
+    probes.push({ name: 'Your proxy — is it running?', url: root, run: async () => {
+      const text = await timedGet(root, 'text');
+      if (!/Finance Tracker proxy/.test(text)) throw Object.assign(new Error('reachable, but this is not the Finance Tracker proxy — check the address'), { kind: 'other' });
+      return 'running';
+    } });
+  }
+  probes.push({ name: 'Yahoo Finance — direct from your browser', url: yurl, run: async () => readYahoo(await timedGet(yurl, 'json')) });
+  allProxyRoutes().forEach(r => probes.push({ name: 'Yahoo Finance — via ' + r.label, url: r.build(yurl), run: async () => readYahoo(await timedGet(r.build(yurl), 'json')) }));
+  const murl = 'https://api.mfapi.in/mf/120503';
+  probes.push({ name: 'Mutual funds — mfapi.in (direct)', url: murl, run: async () => {
+    const j = await timedGet(murl, 'json');
+    if (!j || !j.data || !j.data.length) throw Object.assign(new Error('reachable, but no NAV in the reply'), { kind: 'other' });
     return 'NAV ' + j.data[0].nav + ' on ' + j.data[0].date;
-  }]);
-  const rows = await Promise.all(probes.map(async ([name, fn]) => {
+  } });
+  return Promise.all(probes.map(async (p) => {
     const t0 = Date.now();
-    try { return { name, ok: true, detail: await fn(), ms: Date.now() - t0 }; }
-    catch (e) { return { name, ok: false, detail: e.kind === 'http' ? 'HTTP ' + e.status : e.message, ms: Date.now() - t0 }; }
+    try { return { name: p.name, ok: true, detail: await p.run(), ms: Date.now() - t0 }; }
+    catch (e) { return { name: p.name, ok: false, detail: await explainFailure(e, p.url), ms: Date.now() - t0 }; }
   }));
-  return rows;
 };
 
 Market._internals = { getViaRoutes, runPool, routeState, loadAmfiFile };

@@ -17,6 +17,19 @@ build yet.
 
 ---
 
+## v1.12.3 — 2026-10-30 22:15 UTC — Test price sources: explain why, and check your own proxy
+- **Reported**: the first Test price sources run on the live site showed every route failing — corsproxy.io `HTTP 401`, allorigins and thingproxy "blocked or unreachable" (thingproxy within 54 ms, which suggests the service no longer exists), codetabs timing out at 8 s, and mfapi.in "blocked or unreachable" from the browser. So the free public route is dead, not just flaky, and "blocked or unreachable" was too vague to tell *which* kind of failure each one was.
+- **Changed**: the test now explains each failure. It separates "the site is reachable but doesn't let web pages read it (CORS)" from "cannot be reached from this network (firewall, web filter, or an ad-blocker/extension)", using a reachability probe that works around CORS; and it spells out `HTTP 401` ("demands a login — no longer free"), `HTTP 403` ("blocking requests from websites"), and `HTTP 429` ("rate-limited").
+- **Added**: a **"Your proxy — is it running?"** check, shown first once you've set your own proxy. It opens the Worker's front page and confirms it really is the Finance Tracker proxy, and distinguishes a wrong address, a different website at that address, and an address that can't be reached at all. The verdict under the list now says which of these it is. The verdict scrolls into view, since it sits below the list.
+- **Changed**: the Worker's front page (opening its address in a browser) now says "Finance Tracker proxy is running ✓" instead of an error, so you can confirm a deployment with one click. Other paths without `?url=` still return a usage message.
+- **Changed**: the proxy address is forgiving — pasting `https://name.workers.dev` (without `/?url=`) is completed automatically, so a common slip no longer breaks every refresh.
+- **Changed**: an `HTTP 401` from a proxy is now treated as a permanent block for that refresh (like a 403), so it is tried once rather than for every symbol.
+- **Changed**: the README's proxy setup now includes how to confirm the Worker is running, and a short guide to what each line in Test price sources means.
+- **Verified in simulation**: 25 Worker checks, 43 price-layer checks (adding: failure explanations for CORS / unreachable / login / timeout, the proxy self-check for running, wrong-site and unreachable cases, address completion, and 401 handling), and 25 browser checks with the network intercepted. Page errors: none.
+- **Not verified**: anything against the real services or a real Cloudflare account. In particular, whether mfapi.in is blocked on your network or simply doesn't allow browser access is still unknown — the improved test will say which. The Worker allows mfapi.in, so funds work through your own proxy either way.
+
+---
+
 ## v1.12.2 — 2026-10-29 08:52 UTC — Price refresh: explain failures, survive rate limits, and an optional proxy of your own
 - **Reported**: after v1.12.1, a refresh of 46 holdings updated 2 and failed 44, with the Activity log showing only "all routes are paused after repeated failures". That message was a *consequence* of the failures, not the cause — the app had given up on every route, so the remaining symbols were skipped instantly — and nothing recorded why the routes failed.
 - **Added**: the Activity log now records the **cause** — one line per distinct problem ("NTPC, TCS +42 more: …") plus a "Main cause of the failures" line such as `corsproxy.io: HTTP 403 ×3, allorigins: HTTP 429 ×8` — instead of dozens of identical "paused" lines. The failure pop-up names the main cause too.

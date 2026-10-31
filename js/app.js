@@ -4,7 +4,7 @@
 
 // Single source of truth for the version shown in every page's footer and
 // referenced in README/CHANGELOG. Bump this alongside a new CHANGELOG entry.
-const APP_VERSION = 'v1.12.2';
+const APP_VERSION = 'v1.12.3';
 window.APP_VERSION = APP_VERSION;
 
 const Fmt = {
@@ -389,10 +389,19 @@ function openSettingsModal() {
       const okNames = yahoo.filter(r => r.ok).map(r => r.name.replace('Yahoo Finance — ', '').replace(/^via /, ''));
       const verdict = document.createElement('div');
       verdict.style.cssText = 'margin-top:8px; color:var(--text);';
-      verdict.textContent = okNames.length
-        ? `Indian/US prices can be fetched via: ${okNames.join(', ')}. If a full refresh still fails partway, the free proxies are rate-limiting — running your own proxy (see README) fixes that.`
-        : 'No route can reach Yahoo Finance from this browser right now, which is why Indian and US prices fail. Set up your own proxy (README → "Run your own proxy") and paste its address into the CORS proxy field above.';
+      const myRow = rows.find(r => r.name.startsWith('Your proxy'));
+      const viaMine = rows.find(r => r.name === 'Yahoo Finance — via your proxy');
+      if (okNames.length) {
+        verdict.textContent = `Indian/US prices can be fetched via: ${okNames.join(', ')}.` + (okNames.some(n => n === 'your proxy') ? '' : ' If a full refresh still fails partway, the free proxies are rate-limiting — running your own proxy (see README) fixes that.');
+      } else if (myRow && !myRow.ok) {
+        verdict.textContent = `Your own proxy isn't answering: ${myRow.detail}. Check the address in the CORS proxy field (it should look like https://NAME.workers.dev/?url=) and that the Worker is deployed.`;
+      } else if (myRow && myRow.ok && viaMine && !viaMine.ok) {
+        verdict.textContent = `Your proxy is running, but Yahoo Finance did not answer through it: ${viaMine.detail}. Send me that line.`;
+      } else {
+        verdict.textContent = 'No route can reach Yahoo Finance from this browser right now, which is why Indian and US prices fail. Set up your own proxy (README → "Run your own proxy") and paste its address into the CORS proxy field above.';
+      }
       out.appendChild(verdict);
+      verdict.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); // the verdict sits below the list — make sure it is seen
       btn.disabled = false;
     };
     overlay.querySelector('#clearLogsBtn').onclick = () => {

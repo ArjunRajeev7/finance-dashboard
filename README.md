@@ -1,6 +1,6 @@
 # Finance Tracker
 
-**Current version: v1.12.2** — see [CHANGELOG.md](CHANGELOG.md) for the full history of what's changed. The same version number is shown in the footer of every page, so you can confirm a deployment is actually live.
+**Current version: v1.12.3** — see [CHANGELOG.md](CHANGELOG.md) for the full history of what's changed. The same version number is shown in the footer of every page, so you can confirm a deployment is actually live.
 
 A local-first personal investment tracker with a light/dark theme system built for a data-dense fintech feel — not a generic dashboard template. Seven pages: Dashboard, Indian Stocks (NSE/BSE), US Stocks (incl. ETFs), Mutual Funds, Fixed Deposits, EPF, and Dividends. Live prices for NSE/BSE stocks, mutual fund NAVs, and US stocks/ETFs.
 
@@ -96,12 +96,20 @@ What it does: fetches Yahoo / AMFI / mfapi.in on the server side with a normal b
 1. Create a free account at cloudflare.com (no card needed for Workers).
 2. Dashboard → **Workers & Pages** → **Create** → **Create Worker**. Name it something like `finance-proxy` and click **Deploy** (the placeholder code is fine for now).
 3. Click **Edit code**, delete everything in the editor, paste the whole contents of `proxy/cloudflare-worker.js`, and click **Deploy**.
-4. Copy the Worker's address — it looks like `https://finance-proxy.YOURNAME.workers.dev`.
-5. In the tracker open **Settings**, set **CORS proxy base URL** to that address followed by `/?url=` — for example `https://finance-proxy.YOURNAME.workers.dev/?url=` — and click **Save**.
-6. Click **Test price sources**. The line "Yahoo Finance — via your proxy" should show ✓. Then **Refresh prices**.
+4. Copy the Worker's address — it looks like `https://finance-proxy.YOURNAME.workers.dev` — and open it in a new browser tab. You should see **"Finance Tracker proxy is running ✓"**. If you do, the Worker is deployed correctly.
+5. In the tracker open **Settings**, set **CORS proxy base URL** to that address followed by `/?url=` — for example `https://finance-proxy.YOURNAME.workers.dev/?url=` — and click **Save**. (If you forget the `/?url=` part, the tracker adds it for you.)
+6. Click **Test price sources**. The first line, **"Your proxy — is it running?"**, should show ✓ *running*, and **"Yahoo Finance — via your proxy"** should show ✓ with a RELIANCE price. Then **Refresh prices**.
 7. Use **Save to file** and commit the new `data.json`, so the proxy setting is remembered on your other devices.
 
 Your proxy is tried before all the public ones, and a refresh only falls back to them if it fails.
+
+**What the lines in Test price sources mean:**
+
+- **HTTP 401 / HTTP 403** — that public proxy now demands a login, or is blocking websites. Ignore it once your own proxy works.
+- **reachable, but it does not let web pages read its replies (CORS)** — the site is up, but browsers aren't allowed to read it directly. Normal for Yahoo and the reason a proxy is needed.
+- **cannot be reached from this network** — nothing answers at that address from your connection: a firewall or web filter (common on work networks), or an ad-blocker/privacy extension, is blocking it. If this is the line for *your own proxy* (`workers.dev`), try a different network or temporarily disable the extension, and tell me.
+- **timed out** — no answer within 8 seconds.
+- **not the Finance Tracker proxy — check the address** — the address you entered answers, but it isn't the Worker from this project.
 
 Optional hardening: in the Worker's **Settings → Variables**, add `ALLOWED_ORIGIN` = `https://YOURNAME.github.io` so only your own site can read its replies.
 

@@ -46,8 +46,15 @@ export default {
     if (request.method === 'OPTIONS') return reply(null, 204);
     if (request.method !== 'GET') return reply('GET only', 405);
 
-    const target = new URL(request.url).searchParams.get('url');
-    if (!target) return reply('Usage: ?url=<address-of-the-price-page, URL-encoded>', 400);
+    const reqUrl = new URL(request.url);
+    const target = reqUrl.searchParams.get('url');
+    if (!target) {
+      // opening the Worker's address in a browser should confirm it is alive (the tracker's "Test price sources" also checks this)
+      if (reqUrl.pathname === '/' && !reqUrl.search) {
+        return reply('Finance Tracker proxy is running ✓\n\nIn the tracker: Settings → CORS proxy base URL = this address followed by /?url=', 200);
+      }
+      return reply('Usage: ?url=<address-of-the-price-page, URL-encoded>', 400);
+    }
 
     let t;
     try { t = new URL(target); } catch (e) { return reply('That is not a valid address', 400); }
