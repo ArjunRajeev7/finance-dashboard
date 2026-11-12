@@ -358,4 +358,54 @@ Finance.toINR = function (amount, currency, fxRate) {
   return amount;
 };
 
+// ---------------- Net worth & dividend-journey helpers ----------------
+const _monthIndex = (key) => { const [y, m] = String(key).split('-').map(Number); return y * 12 + (m - 1); };
+Finance.monthIndex = _monthIndex;
+
+// Dividends grouped by calendar year, in INR (US dividends use `amount` = net of tax, converted at usdInr).
+// Years with no dividends between the first and last are included as zero so growth gaps are visible.
+Finance.dividendsByYear = function (dividends, usdInr) {
+  const byYear = {};
+  (dividends || []).forEach(d => {
+    const y = parseInt(String(d.date).slice(0, 4), 10);
+    if (isNaN(y)) return;
+    const inr = d.currency === 'USD' ? d.amount * (usdInr || 83) : d.amount;
+    const row = byYear[y] || (byYear[y] = { year: y, indian: 0, us: 0, total: 0, count: 0 });
+    if (d.assetType === 'US_STOCK') row.us += inr; else row.indian += inr;
+    row.total += inr; row.count++;
+  });
+  const years = Object.keys(byYear).map(Number);
+  if (!years.length) return [];
+  const out = [];
+  for (let y = Math.min(...years); y <= Math.max(...years); y++) out.push(byYear[y] || { year: y, indian: 0, us: 0, total: 0, count: 0 });
+  return out;
+};
+Finance.yoyPct = (prev, cur) => (prev > 0 ? ((cur - prev) / prev) * 100 : null);
+Finance.cagr = (first, last, years) => (first > 0 && last > 0 && years > 0 ? (Math.pow(last / first, 1 / years) - 1) * 100 : null);
+
+// Average monthly growth of net worth over the last `maxMonths` months of snapshots (snapshots sorted ascending).
+// Includes both market moves and money you added — it is "how fast the total has been rising", not returns.
+Finance.avgMonthlyGrowth = function (snapshotsAsc, maxMonths) {
+  maxMonths = maxMonths || 6;
+  if (!snapshotsAsc || snapshotsAsc.length < 2) return null;
+  const last = snapshotsAsc[snapshotsAsc.length - 1];
+  const lastIdx = _monthIndex(last.month);
+  let window = snapshotsAsc.filter(s => lastIdx - _monthIndex(s.month) <= maxMonths);
+  if (window.length < 2) window = snapshotsAsc.slice(-2); // sparse history: fall back to the last two snapshots, however far apart
+  const first = window[0];
+  const months = lastIdx - _monthIndex(first.month);
+  if (months <= 0) return null;
+  return { perMonth: (last.total - first.total) / months, months };
+};
+Finance.etaMonths = (current, target, perMonth) => (current >= target ? 0 : perMonth > 0 ? Math.ceil((target - current) / perMonth) : null);
+
+// "50L", "1 crore", "2.5cr", "75,00,000", "₹ 25k" -> number (INR). Returns null if it can't be understood.
+Finance.parseInrAmount = function (text) {
+  const t = String(text == null ? '' : text).toLowerCase().replace(/[₹,\s]/g, '');
+  const m = t.match(/^(\d+(?:\.\d+)?)(crores?|cr|lakhs?|lacs?|l|k)?$/);
+  if (!m) return null;
+  const mult = { cr: 1e7, crore: 1e7, crores: 1e7, l: 1e5, lakh: 1e5, lakhs: 1e5, lac: 1e5, lacs: 1e5, k: 1e3 }[m[2]] || 1;
+  return parseFloat(m[1]) * mult;
+};
+
 window.Finance = Finance;

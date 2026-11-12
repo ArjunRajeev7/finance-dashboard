@@ -46,6 +46,8 @@ function defaultData() {
       { id: 2, name: 'Account 2' },
       { id: 3, name: 'Account 3' }
     ],
+    netWorthSnapshots: [],
+    netWorthGoal: { target: null, label: '' },
     activityLog: [],
     settings: {
       baseCurrency: 'INR',
@@ -65,6 +67,8 @@ function normalize(raw) {
   ASSET_TYPES.forEach(t => { if (!Array.isArray(d.holdings[t])) d.holdings[t] = []; });
   if (!Array.isArray(d.activityLog)) d.activityLog = [];
   if (!Array.isArray(d.dividends)) d.dividends = [];
+  if (!Array.isArray(d.netWorthSnapshots)) d.netWorthSnapshots = [];
+  if (!d.netWorthGoal || typeof d.netWorthGoal !== 'object') d.netWorthGoal = { target: null, label: '' };
   if (!Array.isArray(d.dividendAccounts) || d.dividendAccounts.length !== 3) d.dividendAccounts = def.dividendAccounts;
   d.settings = Object.assign({}, def.settings, (raw && raw.settings) || {});
   delete d._readme;
@@ -107,10 +111,11 @@ const Store = {
     return this._data;
   },
 
-  save() {
+  // silent = persist + mark unsaved, but don't tell pages to re-render (used by automatic background snapshots)
+  save(silent) {
     localStorage.setItem(CACHE_KEY, JSON.stringify(this._data));
     this._dirty = true;
-    window.dispatchEvent(new CustomEvent('ft-store-updated'));
+    if (!silent) window.dispatchEvent(new CustomEvent('ft-store-updated'));
   },
 
   isDirty() { return this._dirty; },
@@ -121,12 +126,12 @@ const Store = {
   },
 
   // ---------- Activity log (kept in the data file, capped at 25) ----------
-  log(level, message) {
+  log(level, message, silent) {
     const d = this.load();
     if (!Array.isArray(d.activityLog)) d.activityLog = [];
     d.activityLog.push({ ts: new Date().toISOString(), level, message });
     if (d.activityLog.length > 25) d.activityLog = d.activityLog.slice(d.activityLog.length - 25);
-    this.save();
+    this.save(silent);
   },
   getLogs() {
     return this.load().activityLog.slice().reverse(); // most recent first
@@ -268,6 +273,35 @@ const Store = {
       acc.name = name.trim() || acc.name;
       this.log('info', `Renamed dividend account "${oldName}" → "${acc.name}"`);
     }
+    this.save();
+  },
+
+  // ---------- Net worth snapshots + milestone ----------
+  getSnapshots() {
+    return this.load().netWorthSnapshots.slice().sort((a, b) => a.month.localeCompare(b.month));
+  },
+  upsertSnapshot(snap, opts) {
+    opts = opts || {};
+    const d = this.load();
+    const i = d.netWorthSnapshots.findIndex(s => s.month === snap.month);
+    if (i >= 0) d.netWorthSnapshots[i] = snap; else d.netWorthSnapshots.push(snap);
+    // only new months and deliberate edits are logged — a daily background refresh of the same month stays silent
+    if (i < 0 || opts.log) this.log('info', `Net worth snapshot ${i < 0 ? 'saved' : 'updated'} for ${snap.month}: ₹${Math.round(snap.total).toLocaleString('en-IN')}`, opts.silent);
+    this.save(opts.silent);
+    return snap;
+  },
+  deleteSnapshots(months) {
+    const d = this.load();
+    d.netWorthSnapshots = d.netWorthSnapshots.filter(s => !months.includes(s.month));
+    this.log('info', `Deleted ${months.length} net worth snapshot(s): ${months.join(', ')}`);
+    this.save();
+  },
+  getNetWorthGoal() { return this.load().netWorthGoal; },
+  setNetWorthGoal(goal) {
+    const d = this.load();
+    d.netWorthGoal = { target: goal.target > 0 ? goal.target : null, label: (goal.label || '').trim() };
+    const g = d.netWorthGoal;
+    this.log('info', g.target ? `Net worth milestone set to ₹${Math.round(g.target).toLocaleString('en-IN')}${g.label ? ' (' + g.label + ')' : ''}` : 'Net worth milestone cleared');
     this.save();
   },
 

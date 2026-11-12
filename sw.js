@@ -3,15 +3,15 @@
    data calls always go to network.
    ============================================================ */
 
-const CACHE_NAME = 'finance-tracker-v2';
+const CACHE_NAME = 'finance-tracker-v1.13.0';
 const SHELL_FILES = [
   './index.html', './stocks-ind.html', './stocks-us.html',
-  './mutual-funds.html', './fixed-deposits.html', './epf.html', './dividends.html',
+  './mutual-funds.html', './fixed-deposits.html', './epf.html', './dividends.html', './networth.html',
   './manifest.json', './robots.txt', './css/theme.css',
   './js/icons.js', './js/theme.js', './js/store.js', './js/finance.js',
   './js/market.js', './js/valuation.js', './js/charts.js', './js/app.js', './js/importer.js',
   './js/dashboard.js', './js/stocklike.js', './js/mutualfunds.js',
-  './js/fixeddeposits.js', './js/epf.js', './js/dividends.js',
+  './js/fixeddeposits.js', './js/epf.js', './js/dividends.js', './js/networth.js', './js/snapshots.js',
   './icons/icon-192.png', './icons/icon-512.png'
 ];
 

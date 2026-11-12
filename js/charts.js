@@ -178,4 +178,65 @@ Charts.renderLineChart = function (holder, points, opts) {
   `;
 };
 
+
+// ---------------- stacked columns (net worth by asset class per month, dividends by market per year) ----------------
+// A round gridline step (1, 2, 2.5, 5 × a power of ten) at least as big as v
+function niceStep(v) {
+  if (v <= 0) return 1;
+  const p = Math.pow(10, Math.floor(Math.log10(v)));
+  const f = v / p;
+  return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10) * p;
+}
+
+// cfg: { labels:[...], series:[{ name, values:[...], colorIndex }], height?, ariaLabel? } — values in INR
+Charts.renderStacked = function (holder, cfg) {
+  const labels = cfg.labels || [], series = cfg.series || [], n = labels.length;
+  if (!n) { holder.innerHTML = '<div class="empty-state">No data yet</div>'; return; }
+  const palette = Charts.palette();
+  const colors = series.map((s, i) => palette[(s.colorIndex != null ? s.colorIndex : i) % palette.length]);
+  const W = 760, H = cfg.height || 260, padL = 58, padR = 10, padT = 10, padB = 28;
+  const plotW = W - padL - padR, plotH = H - padT - padB;
+  const totals = labels.map((_, i) => series.reduce((s, ser) => s + (ser.values[i] || 0), 0));
+  const maxTotal = Math.max(...totals, 1);
+  const step = niceStep(maxTotal / 4);                 // choose round gridlines first (e.g. ₹1k, ₹2k, ₹3k)…
+  const intervals = Math.max(1, Math.ceil(maxTotal / step));
+  const top = step * intervals;                         // …then size the axis to fit them
+  const slot = plotW / n, bw = Math.max(3, Math.min(44, slot * 0.66));
+  const textCol = Charts.cssVar('--text-faint'), gridCol = Charts.cssVar('--border');
+  let grid = '', bars = '', xl = '', hits = '';
+  for (let k = 0; k <= intervals; k++) {
+    const v = step * k, y = padT + plotH - (v / top) * plotH;
+    grid += `<line x1="${padL}" x2="${W - padR}" y1="${y}" y2="${y}" stroke="${gridCol}" stroke-width="1"/>`;
+    grid += `<text x="${padL - 6}" y="${y + 3.5}" text-anchor="end" fill="${textCol}" font-size="10" font-family="var(--font-mono)">${Fmt.moneyCompact(v)}</text>`;
+  }
+  const every = Math.max(1, Math.ceil(n / 12));
+  labels.forEach((lab, i) => {
+    const cx = padL + slot * i + slot / 2;
+    let yCur = padT + plotH;
+    series.forEach((ser, j) => {
+      const h = ((ser.values[i] || 0) / top) * plotH;
+      if (h > 0) { yCur -= h; bars += `<rect x="${cx - bw / 2}" y="${yCur}" width="${bw}" height="${h}" fill="${colors[j]}" rx="1.5"/>`; }
+    });
+    if (i % every === 0 || i === n - 1) xl += `<text x="${cx}" y="${H - 8}" text-anchor="middle" fill="${textCol}" font-size="10">${lab}</text>`;
+    hits += `<rect class="stack-hit" data-i="${i}" x="${padL + slot * i}" y="${padT}" width="${slot}" height="${plotH}" fill="transparent"/>`;
+  });
+  const legend = series.map((s, j) => `<span class="legend-item"><span class="legend-swatch" style="background:${colors[j]};"></span>${s.name}</span>`).join('');
+  holder.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="${cfg.ariaLabel || 'stacked chart'}" style="display:block; max-width:100%;">${grid}${bars}${xl}${hits}</svg>
+    <div style="display:flex; flex-wrap:wrap; gap:14px; margin-top:8px;">${legend}</div>`;
+
+  const tip = getChartTooltipEl();
+  holder.querySelectorAll('.stack-hit').forEach(hit => {
+    const i = parseInt(hit.dataset.i, 10);
+    hit.addEventListener('mouseenter', () => {
+      hit.setAttribute('fill', 'rgba(127,127,127,0.13)');
+      const rows = series.map((s, j) => ({ s, j, v: s.values[i] || 0 })).filter(r => r.v > 0).reverse()
+        .map(r => `<div><span class="legend-swatch" style="display:inline-block; background:${colors[r.j]}; margin-right:6px;"></span>${r.s.name}<span class="val">${Fmt.money(r.v)}</span></div>`).join('');
+      tip.innerHTML = `<div style="font-weight:600; margin-bottom:4px;">${labels[i]}</div>${rows}<div style="margin-top:4px; padding-top:4px; border-top:1px solid var(--border);">Total<span class="val">${Fmt.money(totals[i])}</span></div>`;
+      tip.style.display = 'block';
+    });
+    hit.addEventListener('mousemove', (e) => { tip.style.left = (e.clientX + 14) + 'px'; tip.style.top = (e.clientY + 14) + 'px'; });
+    hit.addEventListener('mouseleave', () => { hit.setAttribute('fill', 'transparent'); tip.style.display = 'none'; });
+  });
+};
+
 window.Charts = Charts;

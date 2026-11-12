@@ -4,7 +4,7 @@
 
 // Single source of truth for the version shown in every page's footer and
 // referenced in README/CHANGELOG. Bump this alongside a new CHANGELOG entry.
-const APP_VERSION = 'v1.12.3';
+const APP_VERSION = 'v1.13.0';
 window.APP_VERSION = APP_VERSION;
 
 const Fmt = {
@@ -75,6 +75,7 @@ window.Fmt = Fmt;
 
 const NAV_ITEMS = [
   { href: 'index.html', label: 'Dashboard', icon: 'dashboard' },
+  { href: 'networth.html', label: 'Net Worth', icon: 'networth' },
   { href: 'stocks-ind.html', label: 'Indian Stocks', icon: 'stocksIn' },
   { href: 'stocks-us.html', label: 'US Stocks', icon: 'stocksUs' },
   { href: 'mutual-funds.html', label: 'Mutual Funds', icon: 'mutualFunds' },
@@ -150,6 +151,8 @@ function renderShell(activeHref, pageTitle) {
 
   if (scrim) scrim.onclick = closeSidebarMobile;
 
+  // keep this month's net worth snapshot current (quiet; at most once a day) — before the chips so "unsaved" shows
+  try { if (window.Snapshots && window.Valuation) Snapshots.autoTake(); } catch (e) { /* never block a page on this */ }
   updateFxChip();
   updateSourceChip();
   stampFooterVersion();
@@ -222,6 +225,7 @@ async function refreshPrices() {
         : `e.g. ${first.holding}: ${first.error.length > 110 ? first.error.slice(0, 110) + '…' : first.error}`;
       toast(`${failed.length} failed. ${why} Settings → Test price sources shows what's reachable; the Activity log has the detail.`, 'err');
     }
+    try { if (window.Snapshots && updated.length) Snapshots.autoTake({ ever: true }); } catch (e) { /* never block a refresh on this */ }
     updateFxChip();
     updateSourceChip();
     window.dispatchEvent(new CustomEvent('ft-prices-updated'));

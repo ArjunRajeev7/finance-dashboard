@@ -525,3 +525,23 @@ td.select-col + td { white-space: normal; min-width: 96px; max-width: 250px; }
 @media (max-width: 860px) {
   .stat-card .value { font-size: clamp(16px, 4.9vw, 22px); white-space: nowrap; }
 }
+
+
+/* ---------------- net worth page: milestone bar + dividend journey ---------------- */
+.goal-track { background: var(--surface-sunken); border-radius: 100px; height: 16px; overflow: hidden; position: relative; }
+.goal-track .weight-bar-fill { border-radius: 100px; transition: width .6s ease; }
+.goal-ticks { position: absolute; inset: 0; pointer-events: none; }
+.goal-ticks i { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--surface); opacity: .8; }
+.goal-meta { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; font-size: 12px; color: var(--text-muted); margin-top: 8px; font-family: var(--font-mono); }
+.goal-form { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
+.goal-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+.goal-chips button { padding: 4px 10px; font-size: 11.5px; }
+.goal-hit .weight-bar-fill { background: var(--gain); }
+.journey-row { display: grid; grid-template-columns: 64px 1fr 124px 86px; gap: 12px; align-items: center; padding: 7px 0; font-size: 12.5px; }
+.journey-row .yr { font-family: var(--font-mono); color: var(--text-muted); }
+.journey-row .amt { text-align: right; font-family: var(--font-mono); }
+.journey-row .yoy { text-align: right; font-family: var(--font-mono); font-size: 11.5px; }
+@media (max-width: 860px) {
+  .journey-row { grid-template-columns: 52px 1fr 98px; }
+  .journey-row .yoy { grid-column: 2 / -1; text-align: left; }
+}

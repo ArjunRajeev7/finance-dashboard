@@ -1,14 +1,15 @@
 # Finance Tracker
 
-**Current version: v1.12.3** — see [CHANGELOG.md](CHANGELOG.md) for the full history of what's changed. The same version number is shown in the footer of every page, so you can confirm a deployment is actually live.
+**Current version: v1.13.0** — see [CHANGELOG.md](CHANGELOG.md) for the full history of what's changed. The same version number is shown in the footer of every page, so you can confirm a deployment is actually live.
 
-A local-first personal investment tracker with a light/dark theme system built for a data-dense fintech feel — not a generic dashboard template. Seven pages: Dashboard, Indian Stocks (NSE/BSE), US Stocks (incl. ETFs), Mutual Funds, Fixed Deposits, EPF, and Dividends. Live prices for NSE/BSE stocks, mutual fund NAVs, and US stocks/ETFs.
+A local-first personal investment tracker with a light/dark theme system built for a data-dense fintech feel — not a generic dashboard template. Eight pages: Dashboard, Net Worth, Indian Stocks (NSE/BSE), US Stocks (incl. ETFs), Mutual Funds, Fixed Deposits, EPF, and Dividends. Live prices for NSE/BSE stocks, mutual fund NAVs, and US stocks/ETFs.
 
 **Design**: Inter for UI text, IBM Plex Mono (tabular numerals) for money figures and ticker symbols. Every live-fetched price shows a small freshness pulse — green (refreshed <15 min ago), amber (stale, refresh recommended), or gray (manually entered) — so you can see at a glance which numbers are current. Light/dark toggle in the header, remembers your choice, defaults to your OS setting on first visit.
 
 ## Pages
 
 - **`index.html`** — Dashboard: totals, gain/loss, XIRR, diversification metrics, allocation donut, top holdings by weight, full holdings table, invested-vs-current chart, total dividends earned.
+- **`networth.html`** — Net Worth: your total and each asset class snapshotted month by month into a timeline, a milestone progress bar, and your dividends growing year after year.
 - **`stocks-ind.html`** — Indian Stocks: NSE/BSE holdings, qty, avg cost (ex-fees), LTP, current value, P&L, % change, weight, XIRR, purchase-lot tooltip, tags, account-ownership chips.
 - **`stocks-us.html`** — US Stocks: same breakdown for US stocks/ETFs, dual-currency (INR primary, USD secondary) throughout.
 - **`mutual-funds.html`** — individual fund holdings, units, NAV, P&L, XIRR, category breakdown.
@@ -55,6 +56,11 @@ Top-level shape:
     { "id": "...", "assetType": "US_STOCK", "symbol": "AAPL", "date": "2024-08-15", "qty": 10, "perShare": 0.25, "grossAmount": 2.5, "taxWithheld": 0.63, "amount": 1.87, "currency": "USD", "notes": "" }
   ],
   "dividendAccounts": [ { "id": 1, "name": "Account 1" }, { "id": 2, "name": "Account 2" }, { "id": 3, "name": "Account 3" } ],
+  "netWorthSnapshots": [
+    { "month": "2026-10", "date": "2026-10-31", "total": 183404, "invested": 150000, "usdInr": 87.2, "source": "auto",
+      "byClass": { "IN_STOCK": 29500, "IN_MF": 5800, "US_STOCK": 37670, "FD": 110434, "EPF": 0 } }
+  ],
+  "netWorthGoal": { "target": 10000000, "label": "First crore" },
   "activityLog": [ { "ts": "2026-08-26T10:00:00.000Z", "level": "info", "message": "Added Indian Stocks holding: RELIANCE" } ],
   "settings": { "baseCurrency": "INR", "apiKeys": { "alphaVantage": "" }, "corsProxy": "https://corsproxy.io/?url=", "fxOverride": null }
 }
@@ -115,6 +121,17 @@ Optional hardening: in the Worker's **Settings → Variables**, add `ALLOWED_ORI
 
 Honest limits: the Worker's logic is covered by automated tests that simulate Cloudflare, but it hasn't been run on a real Cloudflare account by me, and Yahoo can still choose to throttle any source. If **Test price sources** shows ✗ for your proxy, the reason is printed on that line — send it to me.
 
+## Net Worth
+
+The **Net Worth** page records what you are worth month by month, so you can watch it grow over months and years.
+
+- **What "net worth" means here:** the total of the asset classes you track in this app — Indian stocks, mutual funds, US stocks, fixed deposits and EPF. It is the same figure as the Dashboard's *Current Value*. It does not include loans, property or cash you don't track here.
+- **Monthly snapshots — how they are taken.** A static website can't run on a schedule, so snapshots happen when you use the app. The *current* month's snapshot is created the first time you open any page that month, and refreshed at most once a day (and right after a successful **Refresh prices**). When a new month begins, the previous month's snapshot is simply left as it was last updated — that is its month-end value. For the most accurate month-end figure, open the app near the end of the month and refresh prices first. Each snapshot shows the date it was last updated ("As of").
+- **Add, correct or delete months** (for example to backfill history you already know): use **Take a snapshot, or add / correct a month**, or tick rows in the table and use **Edit** / **Delete**. A month you enter or edit by hand is marked *manual* and is never overwritten by the automatic snapshots. **Take snapshot now** replaces the current month from today's values.
+- **Saved in your data file.** Snapshots and the milestone live in `data.json` (`netWorthSnapshots`, `netWorthGoal`). After an automatic snapshot the header shows the file as *unsaved* — use **Save to file** and commit, like any other change.
+- **Milestone.** Type a target such as `50L`, `1cr`, `2.5 crore` or `10000000` (or pick a preset) and give it a name; the bar fills as your live net worth grows, with the amount still to go. Once you have a few snapshots it also shows a rough estimate of the time remaining, based on your recent average monthly growth — that growth includes money you added as well as market moves, so treat it as an estimate only.
+- **Dividend growth.** Dividends per calendar year (Indian + US, from the Dividends page), with year-on-year change, average yearly growth, and a running total. US dividends are counted after tax withheld and converted at *today's* USD/INR rate, not the rate on the payment date.
+
 ## Selecting rows and bulk actions
 
 On Indian Stocks, US Stocks, Mutual Funds, and every Dividends table, tick the checkbox on a row (or the box in the header to select all). The buttons in the table's top-right corner act on what you've ticked:
@@ -150,8 +167,8 @@ Fixed Deposits and EPF keep their own per-row buttons.
 ## File structure
 
 ```
-index.html, stocks-ind.html, stocks-us.html,
-mutual-funds.html, fixed-deposits.html, epf.html, dividends.html   the seven pages
+index.html, networth.html, stocks-ind.html, stocks-us.html,
+mutual-funds.html, fixed-deposits.html, epf.html, dividends.html   the eight pages
 data/data.json                                       source of truth (hand-editable)
 css/theme.css                                         design system — light/dark tokens, sidebar, cards, tables
 js/icons.js                                           inline SVG line-icon set
@@ -163,7 +180,8 @@ js/valuation.js                                        combines store + prices i
 js/charts.js                                          SVG donut/bar/line charts, theme-aware palette, hover tooltips
 js/importer.js                                        CSV/Excel import (SheetJS via CDN), incl. multi-sheet support
 js/app.js                                             shared sidebar/header, version stamping, save/reload-from-file, settings
-js/dashboard.js, js/stocklike.js, js/mutualfunds.js,
+js/snapshots.js                                       month-end net worth snapshots (runs on every page)
+js/dashboard.js, js/networth.js, js/stocklike.js, js/mutualfunds.js,
 js/fixeddeposits.js, js/epf.js, js/dividends.js       per-page logic
 proxy/cloudflare-worker.js                            optional self-hosted price proxy (see "Run your own proxy")
 manifest.json, sw.js                                  PWA support
