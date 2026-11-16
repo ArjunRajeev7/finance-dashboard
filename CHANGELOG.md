@@ -17,6 +17,18 @@ build yet.
 
 ---
 
+## v1.13.1 — 2026-11-16 00:48 UTC — Mutual fund prices from the Charlie API
+- **Reported**: Test price sources showed mfapi.in could not be read from the browser (CORS), so mutual fund prices were failing. A test of `api.charliealpha.in` from the browser console showed it allows direct browser access and returns the latest NAV, the previous NAV, and the fund's expense ratio in one reply.
+- **Changed**: fund NAVs now come from the **Charlie API first**, then mfapi.in, then AMFI's file. A reply with no usable NAV (missing, zero, "N.A.") is ignored and the next source is tried rather than storing a bad price; if every source fails you get one message naming all three and why each failed. Funds now refresh **without any proxy**.
+- **Changed**: Today's Change for funds is now exact — it uses the previous NAV that the API returns (for your Mirae fund: 100 units × (180.523 − 178.877) = ₹164.60, shown as +₹165 like every other whole-rupee figure, +0.92%).
+- **Added**: the fund's **expense ratio (TER)** is shown under its name on the Mutual Funds page (e.g. "Code 118834 · Folio 7788 · TER 0.85%") and saved on the holding as an optional `ter` field.
+- **Added**: **Test price sources** has a "Mutual funds — Charlie API (direct)" row, showing ✓ with the NAV or the reason it failed.
+- **Changed**: the self-hosted proxy's allowed-sites list now includes `api.charliealpha.in`. This only matters if direct access to the API is ever blocked on your network; if so, redeploy the Worker with the updated file.
+- **Verified**: 26 Node checks using the exact reply from your browser (parsing, text-number tolerance, missing previous NAV/TER, four bad-reply cases falling back, 404, all-sources-down message, own-proxy carrying the call, cache, paused routes, the stored fields, the exact Today's Change maths, the next-day previous-NAV roll-forward, the diagnostic, and five checks that the stock paths are untouched), 22 browser checks on the real pages with the network intercepted (Charlie working, Charlie blocked → mfapi.in, every source down, the diagnostic, every page loading), and 2 Worker checks.
+- **Not verified / limits**: not tested against the live API from the sandbox — field names come from the reply you pasted. The earlier detailed price-layer suite (43 checks) and the Net Worth suites were lost in a sandbox reset and were not re-run in full; the five stock-path checks and a load test of every page (including Net Worth) pass. This is a free third-party service (limit: 50 requests per 10 seconds, plenty for a handful of funds). Other things it offers that are not used yet: comparing funds (returns, risk, holdings overlap), split and bonus alerts, and index benchmarks.
+
+---
+
 ## v1.13.0 — 2026-11-06 14:17 UTC — Net Worth page
 - **Added**: a **Net Worth** page (new nav item, also in the phone nav). It records your total net worth and the amount in each asset class, month by month, and shows the history as a stacked column chart (hover a month for its breakdown) plus a sortable table with the change from the previous month in ₹ and %.
 - **Added**: **month-end snapshots saved in `data.json`** (`netWorthSnapshots`). Because a static site can't run on a schedule, they're taken when you use the app: this month's snapshot is created the first time you open any page and refreshed at most once a day and right after a price refresh; when a new month begins the previous month's snapshot is left as it was last updated (its month-end value). Automatic updates are quiet — they don't redraw the page — but mark the file as unsaved so you remember to Save to file.

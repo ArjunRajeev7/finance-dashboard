@@ -21,6 +21,7 @@ const ALLOWED_HOSTS = [
   'www.amfiindia.com',
   'portal.amfiindia.com',
   'api.mfapi.in',
+  'api.charliealpha.in',
   'www.nseindia.com'
 ];
 

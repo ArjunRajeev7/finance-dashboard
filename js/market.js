@@ -271,14 +271,34 @@ function loadAmfiFile() {
   return _amfiPromise;
 }
 
+// Charlie API (api.charliealpha.in): free, no key, allows browser calls. One request returns the latest NAV,
+// the PREVIOUS NAV (so Today's Change is exact) and the fund's expense ratio (TER).
+async function charlieNav(code) {
+  const j = await getViaRoutes(`https://api.charliealpha.in/v1/mf/lnav/${encodeURIComponent(code)}`, 'json');
+  const nav = parseFloat(j && j.nav);
+  if (!(nav > 0)) throw new Error('the reply had no NAV');
+  const prev = parseFloat(j.previous_nav), ter = parseFloat(j.ter), aum = parseFloat(j.avg_aum_crore);
+  return {
+    price: nav, asOf: j.date, previousClose: prev > 0 ? prev : null, previousDate: j.previous_date || null,
+    ter: isNaN(ter) ? null : ter, aumCrore: isNaN(aum) ? null : aum, source: 'Charlie API', name: j.scheme_name
+  };
+}
+
 Market.fetchMfNav = async function (schemeCode) {
   const code = String(schemeCode).trim();
   const cacheKey = 'mf_' + code;
   const cached = Store.getPriceCache(cacheKey, CACHE_TTL_MS);
   if (cached) return cached;
+  const notes = [];
+  const fail = (who, e) => notes.push(`${who}: ${e.notFound ? 'scheme code not found' : e.message}`);
 
-  let first = null;
-  try { // mfapi.in: small JSON, newest NAV first — and it also gives us the previous day's NAV
+  try { // 1) Charlie API
+    const result = await charlieNav(code);
+    Store.setPriceCache(cacheKey, result);
+    return result;
+  } catch (e) { if (e.paused) throw e; fail('Charlie API', e); }
+
+  try { // 2) mfapi.in: small JSON, newest NAV first — also gives the previous NAV
     const json = await getViaRoutes(`https://api.mfapi.in/mf/${encodeURIComponent(code)}`, 'json');
     const rows = json && json.data;
     const nav = rows && rows.length ? parseFloat(rows[0].nav) : NaN;
@@ -288,19 +308,19 @@ Market.fetchMfNav = async function (schemeCode) {
       Store.setPriceCache(cacheKey, result);
       return result;
     }
-    first = new Error('mfapi.in has no NAV for this code');
-  } catch (e) { first = e; }
+    notes.push('mfapi.in: no NAV for this code');
+  } catch (e) { if (e.paused) throw e; fail('mfapi.in', e); }
 
-  try { // fall back to AMFI's own file
+  try { // 3) AMFI's own daily file
     const map = await loadAmfiFile();
     const entry = map[code];
     if (!entry) throw new Error('scheme code not in the AMFI file');
     const result = Object.assign({ source: 'AMFI' }, entry);
     Store.setPriceCache(cacheKey, result);
     return result;
-  } catch (e2) {
-    throw new Error(`NAV for scheme ${code} not found — mfapi.in: ${first.message}; AMFI: ${e2.message}`);
-  }
+  } catch (e) { fail('AMFI', e); }
+
+  throw new Error(`NAV for scheme ${code} not found — ${notes.join('; ')}`);
 };
 
 // ---------------- US Stocks ----------------
@@ -413,7 +433,7 @@ Market.refreshAll = async function (onProgress) {
       let prev;
       if (q.previousClose != null) prev = q.previousClose;
       else prev = h.lastPriceAt === q.asOf ? h.previousClose : (h.lastPrice != null ? h.lastPrice : undefined);
-      Store.updateHolding('IN_MF', h.id, { lastPrice: q.price, lastPriceAt: q.asOf, priceSource: q.source || 'AMFI', previousClose: prev, priceFetchedAt: nowIso() });
+      Store.updateHolding('IN_MF', h.id, { lastPrice: q.price, lastPriceAt: q.asOf, priceSource: q.source || 'AMFI', previousClose: prev, priceFetchedAt: nowIso(), ter: q.ter != null ? q.ter : h.ter });
       updated.push(h.name);
     } catch (e) { fail(h.name, 'NAV refresh', e); }
     step();
@@ -491,6 +511,12 @@ Market.diagnose = async function () {
   }
   probes.push({ name: 'Yahoo Finance — direct from your browser', url: yurl, run: async () => readYahoo(await timedGet(yurl, 'json')) });
   allProxyRoutes().forEach(r => probes.push({ name: 'Yahoo Finance — via ' + r.label, url: r.build(yurl), run: async () => readYahoo(await timedGet(r.build(yurl), 'json')) }));
+  const curl = 'https://api.charliealpha.in/v1/mf/lnav/118834';
+  probes.push({ name: 'Mutual funds — Charlie API (direct)', url: curl, run: async () => {
+    const j = await timedGet(curl, 'json');
+    if (!j || !(parseFloat(j.nav) > 0)) throw Object.assign(new Error('reachable, but no NAV in the reply'), { kind: 'other' });
+    return 'NAV ' + j.nav + ' on ' + j.date;
+  } });
   const murl = 'https://api.mfapi.in/mf/120503';
   probes.push({ name: 'Mutual funds — mfapi.in (direct)', url: murl, run: async () => {
     const j = await timedGet(murl, 'json');

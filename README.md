@@ -1,6 +1,6 @@
 # Finance Tracker
 
-**Current version: v1.13.0** — see [CHANGELOG.md](CHANGELOG.md) for the full history of what's changed. The same version number is shown in the footer of every page, so you can confirm a deployment is actually live.
+**Current version: v1.13.1** — see [CHANGELOG.md](CHANGELOG.md) for the full history of what's changed. The same version number is shown in the footer of every page, so you can confirm a deployment is actually live.
 
 A local-first personal investment tracker with a light/dark theme system built for a data-dense fintech feel — not a generic dashboard template. Eight pages: Dashboard, Net Worth, Indian Stocks (NSE/BSE), US Stocks (incl. ETFs), Mutual Funds, Fixed Deposits, EPF, and Dividends. Live prices for NSE/BSE stocks, mutual fund NAVs, and US stocks/ETFs.
 
@@ -82,7 +82,7 @@ Open **Settings** (top bar) on any page:
 | Source | Setup | Notes |
 |---|---|---|
 | Indian Stocks | none — routed through a CORS proxy when the site blocks direct requests | Looks up Yahoo Finance as NSE first, then BSE (for BSE-only listings like NSDL, POLYMED), then NSE's official quote as a last resort. Public proxies are free and sometimes blocked or rate-limited — see below. |
-| Mutual Funds | none | Tries mfapi.in first (it also supplies the previous day's NAV, which powers Today's Change), then AMFI's daily NAV file. Matched by AMFI scheme code. |
+| Mutual Funds | none | Tries the Charlie API (api.charliealpha.in) first — one call returns the latest NAV, the previous NAV (which powers an exact Today's Change) and the fund's expense ratio (TER, shown under the fund name); then mfapi.in; then AMFI's daily NAV file. Matched by AMFI scheme code. It allows direct browser access, so funds need no proxy. |
 | US Stocks | Alpha Vantage API key (free, optional) | Get one at alphavantage.co/support/#api-key. The free tier allows only ~25 requests per day; when that's used up (or no key is set) prices come from Yahoo Finance instead, so US prices keep working. |
 | USD → INR | none | frankfurter.app (ECB rates) with a fallback; pin a manual rate in Settings if you prefer. |
 

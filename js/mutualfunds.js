@@ -60,7 +60,7 @@ function renderMfPage() {
           ${rows.length ? rows.map(({ h, val }) => `
             <tr>
               <td class="select-col"><input type="checkbox" class="select-checkbox row-select" data-id="${h.id}" /></td>
-              <td>${h.name}<br><span class="row-name-sub">Code ${h.schemeCode}${h.folio ? ' · Folio ' + h.folio : ''}</span></td>
+              <td>${h.name}<br><span class="row-name-sub">Code ${h.schemeCode}${h.folio ? ' · Folio ' + h.folio : ''}${h.ter != null ? ' · TER ' + Number(h.ter).toFixed(2) + '%' : ''}</span></td>
               <td>${h.category || '—'}</td>
               <td class="num">${Fmt.num(val.qty, 3)}</td>
               <td class="num">${Fmt.moneyPrecise(val.avgCost)}</td>

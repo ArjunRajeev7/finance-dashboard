@@ -4,7 +4,7 @@
 
 // Single source of truth for the version shown in every page's footer and
 // referenced in README/CHANGELOG. Bump this alongside a new CHANGELOG entry.
-const APP_VERSION = 'v1.13.0';
+const APP_VERSION = 'v1.13.1';
 window.APP_VERSION = APP_VERSION;
 
 const Fmt = {
