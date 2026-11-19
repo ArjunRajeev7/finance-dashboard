@@ -192,10 +192,14 @@ async function runPool(items, limit, worker, gapMs) {
   let next = 0;
   const runners = Array.from({ length: Math.min(limit, items.length) }, async () => {
     let started = false;
-    while (next < items.length) {
-      if (started && gapMs) await sleep(gapMs);
+    for (;;) {
+      if (next >= items.length) return;
+      if (started && gapMs) {
+        await sleep(gapMs);
+        if (next >= items.length) return; // another worker may have taken the last item while this one was waiting
+      }
+      const item = items[next++];          // claim an item in the same step as checking one is left — no await in between
       started = true;
-      const item = items[next++];
       await worker(item);
     }
   });
@@ -448,7 +452,12 @@ Market.refreshAll = async function (onProgress) {
     step();
   });
 
-  const [usdInr] = await Promise.all([fxPromise, stocks, funds, us]);
+  // Safety net: an unexpected error inside one asset class must not abort the others or the whole refresh.
+  const guard = (name, p) => p.catch(e => {
+    failed.push({ holding: name, error: 'stopped unexpectedly: ' + e.message });
+    Store.log('error', `${name} refresh stopped unexpectedly: ${e.message}`);
+  });
+  const [usdInr] = await Promise.all([fxPromise, guard('Indian stocks', stocks), guard('Mutual funds', funds), guard('US stocks', us)]);
 
   // Activity log: one line per DISTINCT problem (max 6), the main cause, then the summary.
   let logged = 0;

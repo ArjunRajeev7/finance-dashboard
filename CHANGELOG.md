@@ -17,6 +17,18 @@ build yet.
 
 ---
 
+## v1.13.2 — 2026-11-18 23:22 UTC — Fix: "Refresh failed: Cannot read properties of undefined (reading 'symbol')"
+- **Reported**: clicking Refresh prices ended with "Refresh failed: Cannot read properties of undefined (reading 'symbol')".
+- **Cause (a bug I introduced in v1.12.2)**: the short pause I added between Indian-stock requests had a race in how work is handed out. When two workers both saw one stock left, one took it and the other took nothing — and then crashed reading `.symbol` of nothing. It happens with 3 or more Indian holdings. Because the crash came after the prices were saved, most prices usually did update; what was lost was the end of the refresh — the "Updated N prices" message, the refreshed header chips, and the month's net worth snapshot refresh — and the pop-up wrongly said the whole refresh failed.
+- **Why it wasn't caught**: every test I had turned that pause off, so the code path real users run was never exercised.
+- **Fixed**: work is now claimed in the same step as checking that some is left, so a worker that wakes up and finds nothing simply stops.
+- **Added (safety net)**: an unexpected error inside one asset class (Indian stocks, mutual funds, or US stocks) no longer aborts the whole refresh. The other two finish normally, the problem is counted as failed, and it is written to the Activity log ("Indian stocks refresh stopped unexpectedly: …").
+- **Changed (tests)**: every refresh test now runs with the request pause switched on, as it is for real users.
+- **Verified**: 9 checks of the work distribution and the safety net (the reproduction failed for 3+ stocks on the old code and passes on the new — every count from 0 to 41 items with 2 or 3 workers, and `refreshAll` with 1, 2, 3, 5 and 8 stocks), the 26 fund/price checks re-run with the pause on, 22 browser checks, and a real-browser refresh of 4 Indian stocks plus a fund: the previous build shows the exact error above, this build finishes with "Updated 5 price(s)". Page errors: none.
+- **Not verified**: anything against the live price services.
+
+---
+
 ## v1.13.1 — 2026-11-16 00:48 UTC — Mutual fund prices from the Charlie API
 - **Reported**: Test price sources showed mfapi.in could not be read from the browser (CORS), so mutual fund prices were failing. A test of `api.charliealpha.in` from the browser console showed it allows direct browser access and returns the latest NAV, the previous NAV, and the fund's expense ratio in one reply.
 - **Changed**: fund NAVs now come from the **Charlie API first**, then mfapi.in, then AMFI's file. A reply with no usable NAV (missing, zero, "N.A.") is ignored and the next source is tried rather than storing a bad price; if every source fails you get one message naming all three and why each failed. Funds now refresh **without any proxy**.
